@@ -1,5 +1,3 @@
-const { clearRoom, getRoom } = require("./_supabase");
-
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {
@@ -8,7 +6,6 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const room = getRoom(req);
     const expectedPassword = process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "local-reset" : "");
     const submittedPassword = String(req.body?.password || "");
 
@@ -18,15 +15,14 @@ module.exports = async (req, res) => {
     }
 
     if (!submittedPassword || submittedPassword !== expectedPassword) {
-      res.status(403).json({ error: "Invalid reset password." });
+      res.status(403).json({ error: "Invalid admin password." });
       return;
     }
 
-    await clearRoom(room);
-    res.status(200).json({ ok: true, room });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(error.statusCode || 500).json({
-      error: "Reset failed.",
+    res.status(500).json({
+      error: "Authorization failed.",
       detail: error.message,
     });
   }

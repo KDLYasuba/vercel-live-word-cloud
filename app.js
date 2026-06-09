@@ -281,6 +281,26 @@ async function resetRoom() {
   render([]);
 }
 
+async function authorizeAdminPassword(actionLabel) {
+  const password = window.prompt(`${actionLabel}する管理者パスワードを入力してください。`);
+  if (!password) {
+    throw new Error(`${actionLabel}をキャンセルしました。`);
+  }
+
+  const response = await fetch("/api/authorize", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.error || "Authorization failed");
+  }
+}
+
 function setStatus(message) {
   if (statusEl) {
     statusEl.textContent = message;
@@ -310,21 +330,25 @@ function stopAutoRefresh() {
   refreshTimer = null;
 }
 
-function replaceRoom(nextRoom) {
+async function replaceRoom(nextRoom) {
+  await authorizeAdminPassword("タイトル適用");
   room = normalizeRoom(nextRoom);
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
   notifyRoomChange(room);
-  fetchWords()
-    .then(() => setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。"))
-    .catch((error) => setStatus(error.message));
+  await fetchWords();
+  setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。");
 }
 
 if (roomForm) {
-  roomForm.addEventListener("submit", (event) => {
+  roomForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    replaceRoom(roomInput.value);
+    try {
+      await replaceRoom(roomInput.value);
+    } catch (error) {
+      setStatus(error.message);
+    }
   });
 }
 
