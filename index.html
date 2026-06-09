@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Word Cloud for Vercel</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <p class="eyebrow">Vercel Live Word Cloud</p>
+        <h1>スマホから送ったワードを、会場の1画面に集める</h1>
+        <p class="lead">
+          参加者はスマホで投稿し、会場スクリーンは同じURLの表示専用画面で自動更新します。
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel control-panel">
+          <div class="panel-header">
+            <h2>参加者入力</h2>
+            <p>ルームコードで同じイベントに参加できます。</p>
+          </div>
+
+          <form id="room-form" class="stack-form">
+            <label for="room-input">ルームコード</label>
+            <input id="room-input" name="room" type="text" maxlength="32" placeholder="例: workshop2026" />
+            <button type="submit">ルームを適用</button>
+          </form>
+
+          <form id="word-form" class="stack-form">
+            <label for="word-input">ワード</label>
+            <div class="form-row">
+              <input
+                id="word-input"
+                name="word"
+                type="text"
+                maxlength="30"
+                placeholder="例: 挑戦, 安心, 成長"
+                autocomplete="off"
+                required
+              />
+              <button type="submit">送信</button>
+            </div>
+          </form>
+
+          <div class="action-row">
+            <a id="screen-link" class="ghost-button" href="/screen?room=main" target="_blank" rel="noreferrer">表示専用を開く</a>
+            <button id="reset-button" class="ghost-button" type="button">このルームをリセット</button>
+          </div>
+
+          <div class="room-info">
+            <span>現在のルーム</span>
+            <strong id="current-room">main</strong>
+          </div>
+
+          <p id="status" class="status">読み込み中...</p>
+        </section>
+
+        <section class="panel cloud-panel">
+          <div class="panel-header">
+            <h2>ライブ表示</h2>
+            <p>数秒ごとに更新され、投稿が集計されます。</p>
+          </div>
+
+          <div id="cloud" class="cloud" aria-live="polite"></div>
+
+          <div class="stats">
+            <div>
+              <span class="stat-label">投稿ワード数</span>
+              <strong id="total-count">0</strong>
+            </div>
+            <div>
+              <span class="stat-label">ユニーク数</span>
+              <strong id="unique-count">0</strong>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

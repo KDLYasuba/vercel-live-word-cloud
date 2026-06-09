@@ -1,0 +1,12 @@
+{
+  "name": "vercel-live-word-cloud",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "local": "vercel dev --local --listen 4000",
+    "deploy": "vercel"
+  },
+  "dependencies": {
+    "vercel": "^50.41.0"
+  }
+}
