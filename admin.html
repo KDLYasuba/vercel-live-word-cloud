@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Live Word Cloud</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell admin-shell">
+      <main class="admin-layout">
+        <section class="panel control-panel">
+          <div class="panel-header">
+            <h2>司会者設定</h2>
+            <p>タイトルを適用すると、そのタイトルの投稿がリセットされ、表示専用画面へ反映されます。</p>
+          </div>
+
+          <form id="room-form" class="stack-form">
+            <label for="room-input">タイトル</label>
+            <input id="room-input" name="room" type="text" maxlength="64" placeholder="例: 今日の学び" />
+            <button type="submit">タイトルを適用</button>
+          </form>
+
+          <div class="action-row">
+            <a id="screen-link" class="ghost-button" href="/screen?room=main" target="_blank" rel="noreferrer">表示専用を開く</a>
+            <a class="ghost-button" href="/">参加者入力を開く</a>
+          </div>
+
+          <p id="status" class="status">読み込み中...</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
