@@ -161,8 +161,9 @@ function aggregateEntries(entries) {
 function getRoom(req) {
   const room = String(req.query.room || "main")
     .trim()
-    .replace(/[^a-zA-Z0-9_-]/g, "")
-    .slice(0, 32);
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 64);
 
   return room || "main";
 }

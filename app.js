@@ -18,8 +18,9 @@ let refreshTimer = null;
 function normalizeRoom(value) {
   return String(value || "main")
     .trim()
-    .replace(/[^a-zA-Z0-9_-]/g, "")
-    .slice(0, 32) || "main";
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 64) || "main";
 }
 
 function updateRoomUi() {
@@ -230,7 +231,7 @@ async function submitWord(word) {
 }
 
 async function resetRoom() {
-  const password = window.prompt(`ルーム「${room}」をリセットする管理者パスワードを入力してください。`);
+  const password = window.prompt(`タイトル「${room}」をリセットする管理者パスワードを入力してください。`);
   if (!password) {
     throw new Error("リセットをキャンセルしました。");
   }
@@ -286,7 +287,7 @@ function replaceRoom(nextRoom) {
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
   fetchWords()
-    .then(() => setStatus(isScreenMode ? "自動更新中" : "ルームを切り替えました。"))
+    .then(() => setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。"))
     .catch((error) => setStatus(error.message));
 }
 

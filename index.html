@@ -20,13 +20,13 @@
         <section class="panel control-panel">
           <div class="panel-header">
             <h2>参加者入力</h2>
-            <p>ルームコードで同じイベントに参加できます。</p>
+            <p>司会者が設定したタイトルごとに投稿を集計します。</p>
           </div>
 
           <form id="room-form" class="stack-form">
-            <label for="room-input">ルームコード</label>
-            <input id="room-input" name="room" type="text" maxlength="32" placeholder="例: workshop2026" />
-            <button type="submit">ルームを適用</button>
+            <label for="room-input">タイトル</label>
+            <input id="room-input" name="room" type="text" maxlength="64" placeholder="例: 今日の学び" />
+            <button type="submit">タイトルを適用</button>
           </form>
 
           <form id="word-form" class="stack-form">
@@ -51,7 +51,7 @@
           </div>
 
           <div class="room-info">
-            <span>現在のルーム</span>
+            <span>現在のタイトル</span>
             <strong id="current-room">main</strong>
           </div>
 
