@@ -7,7 +7,6 @@ const roomForm = document.getElementById("room-form");
 const roomInput = document.getElementById("room-input");
 const form = document.getElementById("word-form");
 const input = document.getElementById("word-input");
-const resetButton = document.getElementById("reset-button");
 const screenLink = document.getElementById("screen-link");
 
 const isScreenMode = window.location.pathname === "/screen";
@@ -259,13 +258,13 @@ async function submitWord(word) {
   render(payload.words || []);
 }
 
-async function resetRoom() {
-  const password = window.prompt(`タイトル「${room}」をリセットする管理者パスワードを入力してください。`);
+async function resetRoom(targetRoom, password) {
+  const roomToReset = normalizeRoom(targetRoom);
   if (!password) {
     throw new Error("リセットをキャンセルしました。");
   }
 
-  const response = await fetch(`/api/reset?room=${encodeURIComponent(room)}`, {
+  const response = await fetch(`/api/reset?room=${encodeURIComponent(roomToReset)}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -281,24 +280,13 @@ async function resetRoom() {
   render([]);
 }
 
-async function authorizeAdminPassword(actionLabel) {
+function requestAdminPassword(actionLabel) {
   const password = window.prompt(`${actionLabel}する管理者パスワードを入力してください。`);
   if (!password) {
     throw new Error(`${actionLabel}をキャンセルしました。`);
   }
 
-  const response = await fetch("/api/authorize", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ password }),
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.detail || payload.error || "Authorization failed");
-  }
+  return password;
 }
 
 function setStatus(message) {
@@ -331,14 +319,16 @@ function stopAutoRefresh() {
 }
 
 async function replaceRoom(nextRoom) {
-  await authorizeAdminPassword("タイトル適用");
-  room = normalizeRoom(nextRoom);
+  const nextNormalizedRoom = normalizeRoom(nextRoom);
+  const password = requestAdminPassword("タイトル適用");
+  await resetRoom(nextNormalizedRoom, password);
+  room = nextNormalizedRoom;
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
   notifyRoomChange(room);
   await fetchWords();
-  setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。");
+  setStatus(isScreenMode ? "自動更新中" : "タイトルを適用し、表示をリセットしました。");
 }
 
 if (roomForm) {
@@ -365,17 +355,6 @@ if (form) {
       input.value = "";
       input.focus();
       setStatus(`「${word}」を送信しました。`);
-    } catch (error) {
-      setStatus(error.message);
-    }
-  });
-}
-
-if (resetButton) {
-  resetButton.addEventListener("click", async () => {
-    try {
-      await resetRoom();
-      setStatus("リセットしました。");
     } catch (error) {
       setStatus(error.message);
     }
