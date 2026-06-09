@@ -12,6 +12,8 @@ const screenLink = document.getElementById("screen-link");
 
 const isScreenMode = window.location.pathname === "/screen";
 const params = new URLSearchParams(window.location.search);
+const activeRoomStorageKey = "vercel-live-word-cloud-active-room";
+const roomChannel = "BroadcastChannel" in window ? new BroadcastChannel("vercel-live-word-cloud-room") : null;
 let room = normalizeRoom(params.get("room") || "main");
 let refreshTimer = null;
 
@@ -35,6 +37,33 @@ function updateRoomUi() {
   if (screenLink) {
     screenLink.href = `/screen?room=${encodeURIComponent(room)}`;
   }
+}
+
+function notifyRoomChange(nextRoom) {
+  try {
+    window.localStorage.setItem(activeRoomStorageKey, nextRoom);
+  } catch (error) {
+    // localStorage may be unavailable in some embedded browsers.
+  }
+
+  if (roomChannel) {
+    roomChannel.postMessage({ room: nextRoom });
+  }
+}
+
+function applyIncomingRoom(nextRoom) {
+  const normalized = normalizeRoom(nextRoom);
+  if (normalized === room) {
+    return;
+  }
+
+  room = normalized;
+  params.set("room", room);
+  window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+  updateRoomUi();
+  fetchWords()
+    .then(() => setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。"))
+    .catch((error) => setStatus(error.message));
 }
 
 function colorForWord(word) {
@@ -286,6 +315,7 @@ function replaceRoom(nextRoom) {
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
+  notifyRoomChange(room);
   fetchWords()
     .then(() => setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。"))
     .catch((error) => setStatus(error.message));
@@ -334,6 +364,20 @@ fetchWords()
   .catch((error) => setStatus(error.message));
 
 if (isScreenMode) {
+  window.addEventListener("storage", (event) => {
+    if (event.key === activeRoomStorageKey && event.newValue) {
+      applyIncomingRoom(event.newValue);
+    }
+  });
+
+  if (roomChannel) {
+    roomChannel.addEventListener("message", (event) => {
+      if (event.data?.room) {
+        applyIncomingRoom(event.data.room);
+      }
+    });
+  }
+
   startAutoRefresh();
 
   document.addEventListener("visibilitychange", () => {
