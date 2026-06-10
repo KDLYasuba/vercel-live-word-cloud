@@ -144,11 +144,19 @@ function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY) 
 }
 
 function render(words) {
+  if (!cloud) {
+    return;
+  }
+
   cloud.innerHTML = "";
 
   const total = words.reduce((sum, item) => sum + item.count, 0);
-  totalCountEl.textContent = String(total);
-  uniqueCountEl.textContent = String(words.length);
+  if (totalCountEl) {
+    totalCountEl.textContent = String(total);
+  }
+  if (uniqueCountEl) {
+    uniqueCountEl.textContent = String(words.length);
+  }
 
   if (!words.length) {
     const empty = document.createElement("p");
@@ -239,6 +247,7 @@ async function fetchWords() {
   }
 
   render(payload.words || []);
+  return payload;
 }
 
 async function submitWord(word) {
