@@ -13,8 +13,9 @@ const isScreenMode = window.location.pathname === "/screen";
 const params = new URLSearchParams(window.location.search);
 const activeRoomStorageKey = "vercel-live-word-cloud-active-room";
 const roomChannel = "BroadcastChannel" in window ? new BroadcastChannel("vercel-live-word-cloud-room") : null;
-let room = normalizeRoom(params.get("room") || "main");
+let room = normalizeRoom(params.get("room") || readCachedRoom() || "main");
 let refreshTimer = null;
+let titleRefreshTimer = null;
 
 function normalizeRoom(value) {
   return String(value || "main")
@@ -22,6 +23,14 @@ function normalizeRoom(value) {
     .replace(/[\u0000-\u001f\u007f]/g, "")
     .replace(/\s+/g, " ")
     .slice(0, 64) || "main";
+}
+
+function readCachedRoom() {
+  try {
+    return window.localStorage.getItem(activeRoomStorageKey);
+  } catch (error) {
+    return "";
+  }
 }
 
 function updateRoomUi() {
@@ -63,6 +72,25 @@ function applyIncomingRoom(nextRoom) {
   fetchWords()
     .then(() => setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。"))
     .catch((error) => setStatus(error.message));
+}
+
+async function fetchActiveRoom() {
+  const response = await fetch("/api/title", {
+    cache: "no-store",
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.error || "Title fetch failed");
+  }
+
+  return normalizeRoom(payload.room);
+}
+
+async function syncActiveRoom() {
+  const activeRoom = await fetchActiveRoom();
+  applyIncomingRoom(activeRoom);
+  return activeRoom;
 }
 
 function colorForWord(word) {
@@ -289,6 +317,25 @@ async function resetRoom(targetRoom, password) {
   render([]);
 }
 
+async function applyTitle(targetRoom, password) {
+  const nextRoom = normalizeRoom(targetRoom);
+  const response = await fetch("/api/title", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ room: nextRoom, password }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.error || "Title apply failed");
+  }
+
+  render([]);
+  return normalizeRoom(payload.room);
+}
+
 function requestAdminPassword(actionLabel) {
   const password = window.prompt(`${actionLabel}する管理者パスワードを入力してください。`);
   if (!password) {
@@ -327,11 +374,20 @@ function stopAutoRefresh() {
   refreshTimer = null;
 }
 
+function startTitleRefresh() {
+  if (titleRefreshTimer) {
+    return;
+  }
+
+  titleRefreshTimer = window.setInterval(() => {
+    syncActiveRoom().catch((error) => setStatus(error.message));
+  }, 6000);
+}
+
 async function replaceRoom(nextRoom) {
   const nextNormalizedRoom = normalizeRoom(nextRoom);
   const password = requestAdminPassword("タイトル適用");
-  await resetRoom(nextNormalizedRoom, password);
-  room = nextNormalizedRoom;
+  room = await applyTitle(nextNormalizedRoom, password);
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
@@ -371,9 +427,13 @@ if (form) {
 }
 
 updateRoomUi();
-fetchWords()
+syncActiveRoom()
+  .catch(() => room)
+  .then(() => fetchWords())
   .then(() => setStatus(isScreenMode ? "自動更新中" : "準備完了です。"))
   .catch((error) => setStatus(error.message));
+
+startTitleRefresh();
 
 if (isScreenMode) {
   window.addEventListener("storage", (event) => {

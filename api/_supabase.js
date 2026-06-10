@@ -6,6 +6,7 @@ const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "word_entries";
 const LOCAL_STORE_PATH = path.join(process.cwd(), ".local-word-entries.json");
+const STATE_ROOM = "__live_word_cloud_state__";
 
 function hasSupabaseEnv() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
@@ -145,6 +146,17 @@ async function clearRoom(room) {
   });
 }
 
+async function getActiveRoom() {
+  const entries = await listEntries(STATE_ROOM);
+  return entries[0]?.word || "main";
+}
+
+async function setActiveRoom(room) {
+  await clearRoom(STATE_ROOM);
+  await insertEntry(STATE_ROOM, room);
+  return room;
+}
+
 function aggregateEntries(entries) {
   const counts = new Map();
 
@@ -171,7 +183,9 @@ function getRoom(req) {
 module.exports = {
   aggregateEntries,
   clearRoom,
+  getActiveRoom,
   getRoom,
   insertEntry,
   listEntries,
+  setActiveRoom,
 };
