@@ -22,6 +22,14 @@ const STOP_WORDS = new Set([
   "いる",
   "ある",
   "ない",
+  "たい",
+  "れる",
+  "られる",
+  "せる",
+  "させる",
+  "できる",
+  "ほしい",
+  "ください",
   "とても",
   "すごく",
   "そして",
@@ -53,11 +61,14 @@ const DOMAIN_TERMS = [
   "テクノロジー",
   "利用者",
   "介護職",
+  "安心",
+  "職場",
 ].sort((a, b) => b.length - a.length);
 
-function collectDomainTokens(source) {
+function collectDomainMatches(source) {
   const occupied = new Array(source.length).fill(false);
   const tokens = [];
+  const ranges = [];
 
   for (const term of DOMAIN_TERMS) {
     let start = source.indexOf(term);
@@ -68,6 +79,7 @@ function collectDomainTokens(source) {
 
       if (!overlaps) {
         tokens.push(term);
+        ranges.push({ start, end });
         for (let index = start; index < end; index += 1) {
           occupied[index] = true;
         }
@@ -77,11 +89,17 @@ function collectDomainTokens(source) {
     }
   }
 
-  return tokens;
+  return { tokens, ranges };
 }
 
-function isPartOfDomainToken(segment, domainTokens) {
-  return domainTokens.some((token) => token !== segment && token.includes(segment));
+function overlapsDomainMatch(item, domainMatches) {
+  if (item.index < 0) {
+    return domainMatches.tokens.some((token) => token !== item.segment && token.includes(item.segment));
+  }
+
+  const start = item.index;
+  const end = start + item.segment.length;
+  return domainMatches.ranges.some((range) => start < range.end && end > range.start);
 }
 
 function tokenizeText(text) {
@@ -90,23 +108,32 @@ function tokenizeText(text) {
     return [];
   }
 
-  const domainTokens = collectDomainTokens(source);
+  const domainMatches = collectDomainMatches(source);
   const segments =
     typeof Intl !== "undefined" && Intl.Segmenter
       ? [...new Intl.Segmenter("ja", { granularity: "word" }).segment(source)]
           .filter((segment) => segment.isWordLike !== false)
-          .map((segment) => segment.segment)
-      : source.split(/[\s、。,.!?！？「」『』（）()[\]{}・:;]+/);
+          .map((segment) => ({ segment: segment.segment, index: segment.index }))
+      : source
+          .split(/[\s、。,.!?！？「」『』（）()[\]{}・:;]+/)
+          .map((segment) => ({ segment, index: -1 }));
 
   const segmentTokens = segments
-    .map((segment) => segment.trim().replace(/^[\s、。,.!?！？「」『』（）()[\]{}・:;]+|[\s、。,.!?！？「」『』（）()[\]{}・:;]+$/g, ""))
-    .map((segment) => (/^[a-zA-Z0-9]+$/.test(segment) ? segment.toLowerCase() : segment))
-    .filter((segment) => segment.length >= 2)
-    .filter((segment) => !/^\d+$/.test(segment))
-    .filter((segment) => !STOP_WORDS.has(segment))
-    .filter((segment) => !isPartOfDomainToken(segment, domainTokens));
+    .map((item) => ({
+      ...item,
+      segment: item.segment.trim().replace(/^[\s、。,.!?！？「」『』（）()[\]{}・:;]+|[\s、。,.!?！？「」『』（）()[\]{}・:;]+$/g, ""),
+    }))
+    .map((item) => ({
+      ...item,
+      segment: /^[a-zA-Z0-9]+$/.test(item.segment) ? item.segment.toLowerCase() : item.segment,
+    }))
+    .filter((item) => item.segment.length >= 2)
+    .filter((item) => !/^\d+$/.test(item.segment))
+    .filter((item) => !STOP_WORDS.has(item.segment))
+    .filter((item) => !overlapsDomainMatch(item, domainMatches))
+    .map((item) => item.segment);
 
-  return [...domainTokens, ...segmentTokens];
+  return [...domainMatches.tokens, ...segmentTokens];
 }
 
 function aggregateTokens(entries) {
