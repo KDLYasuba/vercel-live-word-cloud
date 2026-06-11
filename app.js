@@ -221,6 +221,34 @@ function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY) 
   return candidates;
 }
 
+function buildGridBasePosition(index, columns, rows, width, height) {
+  const col = index % columns;
+  const row = Math.floor(index / columns);
+  const jitterX = ((index * 41) % 20) - 10;
+  const jitterY = ((index * 59) % 24) - 12;
+
+  return {
+    x: ((col + 0.5) / columns) * width + jitterX * (isScreenMode ? 8 : 5),
+    y: ((row + 0.5) / rows) * height + jitterY * (isScreenMode ? 7 : 4),
+  };
+}
+
+function buildRankedBasePosition(index, total, width, height) {
+  if (index === 0) {
+    return { x: width * 0.5, y: height * 0.5 };
+  }
+
+  const progress = Math.sqrt(index / Math.max(1, total - 1));
+  const angle = index * 2.399963229728653;
+  const radiusX = width * (isScreenMode ? 0.42 : 0.38) * progress;
+  const radiusY = height * (isScreenMode ? 0.36 : 0.32) * progress;
+
+  return {
+    x: width * 0.5 + Math.cos(angle) * radiusX,
+    y: height * 0.5 + Math.sin(angle) * radiusY,
+  };
+}
+
 function render(words) {
   if (!cloud) {
     return;
@@ -255,18 +283,12 @@ function render(words) {
     const label = item.word;
     const sizeInfo = sizeForCount(item.count);
     const fontSize = sizeInfo.size;
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const jitterX = ((index * 41) % 20) - 10;
-    const jitterY = ((index * 59) % 24) - 12;
-    const gridX = ((col + 0.5) / columns) * width + jitterX * (isScreenMode ? 8 : 5);
-    const gridY = ((row + 0.5) / rows) * height + jitterY * (isScreenMode ? 7 : 4);
-    const centerWeight =
-      sizeInfo.bucket < 2 || sizeInfo.maxBucket <= 0
-        ? 0
-        : ((sizeInfo.bucket - 1) / (sizeInfo.maxBucket - 1)) * (isScreenMode ? 0.72 : 0.45);
-    const rawX = gridX * (1 - centerWeight) + width * 0.5 * centerWeight;
-    const rawY = gridY * (1 - centerWeight) + height * 0.5 * centerWeight;
+    const basePosition =
+      displayMode === "tokens"
+        ? buildRankedBasePosition(index, words.length, width, height)
+        : buildGridBasePosition(index, columns, rows, width, height);
+    const rawX = basePosition.x;
+    const rawY = basePosition.y;
     const chipWidth = estimateChipWidth(label, fontSize);
     const chipHeight = estimateChipHeight(fontSize);
     const marginX = chipWidth / 2 + 34;
