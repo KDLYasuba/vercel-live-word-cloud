@@ -26,23 +26,26 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
-      const expectedPassword = getExpectedPassword();
-      const submittedPassword = String(req.body?.password || "");
-
-      if (!expectedPassword) {
-        res.status(500).json({ error: "RESET_PASSWORD is not configured." });
-        return;
-      }
-
-      if (!submittedPassword || submittedPassword !== expectedPassword) {
-        res.status(403).json({ error: "Invalid admin password." });
-        return;
-      }
-
       const current = await getActiveState();
       const room = normalizeTitle(req.body?.room || current.room);
       const mode = normalizeMode(req.body?.mode || current.mode);
       const shouldReset = req.body?.reset !== false;
+      const requiresPassword = shouldReset || room !== current.room;
+
+      if (requiresPassword) {
+        const expectedPassword = getExpectedPassword();
+        const submittedPassword = String(req.body?.password || "");
+
+        if (!expectedPassword) {
+          res.status(500).json({ error: "RESET_PASSWORD is not configured." });
+          return;
+        }
+
+        if (!submittedPassword || submittedPassword !== expectedPassword) {
+          res.status(403).json({ error: "Invalid admin password." });
+          return;
+        }
+      }
 
       if (shouldReset) {
         await clearRoom(room);

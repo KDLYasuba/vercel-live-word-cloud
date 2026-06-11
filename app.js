@@ -388,14 +388,13 @@ async function applyTitle(targetRoom, password) {
 }
 
 async function applyDisplayMode(nextMode) {
-  const password = requestAdminPassword("表示モード変更");
   const normalizedMode = normalizeMode(nextMode);
   const response = await fetch("/api/title", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room, mode: normalizedMode, password, reset: false }),
+    body: JSON.stringify({ room, mode: normalizedMode, reset: false }),
   });
   const payload = await response.json();
 
