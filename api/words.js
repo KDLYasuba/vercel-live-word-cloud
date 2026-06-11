@@ -107,6 +107,10 @@ function overlapsDomainMatch(item, domainMatches) {
   return domainMatches.ranges.some((range) => start < range.end && end > range.start);
 }
 
+function isTwoCharacterHiragana(segment) {
+  return /^[ぁ-ゖ]{2}$/.test(segment);
+}
+
 function tokenizeText(text) {
   const source = String(text || "").trim();
   if (!source) {
@@ -135,6 +139,7 @@ function tokenizeText(text) {
     .filter((item) => item.segment.length >= 2)
     .filter((item) => !/^\d+$/.test(item.segment))
     .filter((item) => !STOP_WORDS.has(item.segment))
+    .filter((item) => !isTwoCharacterHiragana(item.segment))
     .filter((item) => !overlapsDomainMatch(item, domainMatches))
     .map((item) => item.segment);
 
