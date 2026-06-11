@@ -255,6 +255,16 @@ body {
   line-height: 1.1;
 }
 
+.event-logo {
+  position: fixed;
+  right: clamp(14px, 2vw, 32px);
+  bottom: clamp(12px, 1.8vw, 28px);
+  z-index: 20;
+  width: clamp(190px, 23vw, 420px);
+  height: auto;
+  pointer-events: none;
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;
