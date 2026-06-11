@@ -205,8 +205,22 @@ body {
   min-height: calc(100vh - 230px);
 }
 
+.screen-cloud::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 0;
+  width: clamp(210px, 28vw, 420px);
+  aspect-ratio: 1;
+  background: url("/assets/kaigo-sapuri-background-logo.png") center / contain no-repeat;
+  opacity: 0.22;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 .word-chip {
   position: absolute;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
