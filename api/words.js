@@ -32,12 +32,65 @@ const STOP_WORDS = new Set([
   "思い",
 ]);
 
+const DOMAIN_TERMS = [
+  "地域包括ケア推進",
+  "安全な職場環境",
+  "利用者本位",
+  "社会的評価",
+  "職場環境",
+  "人手不足",
+  "記録作業",
+  "事務作業",
+  "処遇改善",
+  "家族支援",
+  "多職種連携",
+  "地域包括ケア",
+  "資格取得",
+  "夜勤負担",
+  "人員配置",
+  "介護業界",
+  "介護ロボット",
+  "テクノロジー",
+  "利用者",
+  "介護職",
+].sort((a, b) => b.length - a.length);
+
+function collectDomainTokens(source) {
+  const occupied = new Array(source.length).fill(false);
+  const tokens = [];
+
+  for (const term of DOMAIN_TERMS) {
+    let start = source.indexOf(term);
+
+    while (start !== -1) {
+      const end = start + term.length;
+      const overlaps = occupied.slice(start, end).some(Boolean);
+
+      if (!overlaps) {
+        tokens.push(term);
+        for (let index = start; index < end; index += 1) {
+          occupied[index] = true;
+        }
+      }
+
+      start = source.indexOf(term, start + 1);
+    }
+  }
+
+  return tokens;
+}
+
+function isPartOfDomainToken(segment, domainTokens) {
+  return domainTokens.some((token) => token !== segment && token.includes(segment));
+}
+
 function tokenizeText(text) {
   const source = String(text || "").trim();
   if (!source) {
     return [];
   }
 
+  const domainTokens = collectDomainTokens(source);
   const segments =
     typeof Intl !== "undefined" && Intl.Segmenter
       ? [...new Intl.Segmenter("ja", { granularity: "word" }).segment(source)]
@@ -45,12 +98,15 @@ function tokenizeText(text) {
           .map((segment) => segment.segment)
       : source.split(/[\s、。,.!?！？「」『』（）()[\]{}・:;]+/);
 
-  return segments
+  const segmentTokens = segments
     .map((segment) => segment.trim().replace(/^[\s、。,.!?！？「」『』（）()[\]{}・:;]+|[\s、。,.!?！？「」『』（）()[\]{}・:;]+$/g, ""))
     .map((segment) => (/^[a-zA-Z0-9]+$/.test(segment) ? segment.toLowerCase() : segment))
     .filter((segment) => segment.length >= 2)
     .filter((segment) => !/^\d+$/.test(segment))
-    .filter((segment) => !STOP_WORDS.has(segment));
+    .filter((segment) => !STOP_WORDS.has(segment))
+    .filter((segment) => !isPartOfDomainToken(segment, domainTokens));
+
+  return [...domainTokens, ...segmentTokens];
 }
 
 function aggregateTokens(entries) {
