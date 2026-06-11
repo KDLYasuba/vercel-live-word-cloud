@@ -1,4 +1,9 @@
-const { clearRoom, getActiveRoom, setActiveRoom } = require("./_supabase");
+const {
+  clearRoom,
+  getActiveState,
+  normalizeMode,
+  setActiveState,
+} = require("./_supabase");
 
 function normalizeTitle(value) {
   return String(value || "main")
@@ -15,8 +20,8 @@ function getExpectedPassword() {
 module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
-      const room = await getActiveRoom();
-      res.status(200).json({ room });
+      const state = await getActiveState();
+      res.status(200).json(state);
       return;
     }
 
@@ -34,10 +39,17 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const room = normalizeTitle(req.body?.room);
-      await clearRoom(room);
-      await setActiveRoom(room);
-      res.status(200).json({ ok: true, room });
+      const current = await getActiveState();
+      const room = normalizeTitle(req.body?.room || current.room);
+      const mode = normalizeMode(req.body?.mode || current.mode);
+      const shouldReset = req.body?.reset !== false;
+
+      if (shouldReset) {
+        await clearRoom(room);
+      }
+
+      const state = await setActiveState({ room, mode });
+      res.status(200).json({ ok: true, ...state });
       return;
     }
 

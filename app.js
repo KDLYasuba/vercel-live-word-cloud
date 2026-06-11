@@ -8,12 +8,16 @@ const roomInput = document.getElementById("room-input");
 const form = document.getElementById("word-form");
 const input = document.getElementById("word-input");
 const screenLink = document.getElementById("screen-link");
+const wordModeButton = document.getElementById("word-mode-button");
+const rawModeButton = document.getElementById("raw-mode-button");
 
 const isScreenMode = window.location.pathname === "/screen";
 const params = new URLSearchParams(window.location.search);
 const activeRoomStorageKey = "vercel-live-word-cloud-active-room";
 const roomChannel = "BroadcastChannel" in window ? new BroadcastChannel("vercel-live-word-cloud-room") : null;
-let room = normalizeRoom(params.get("room") || readCachedRoom() || "main");
+const cachedState = parseCachedState(readCachedRoom());
+let room = normalizeRoom(params.get("room") || cachedState.room || "main");
+let displayMode = normalizeMode(cachedState.mode);
 let refreshTimer = null;
 let titleRefreshTimer = null;
 
@@ -45,27 +49,62 @@ function updateRoomUi() {
   if (screenLink) {
     screenLink.href = `/screen?room=${encodeURIComponent(room)}`;
   }
+
+  if (wordModeButton) {
+    wordModeButton.classList.toggle("is-active", displayMode === "tokens");
+  }
+
+  if (rawModeButton) {
+    rawModeButton.classList.toggle("is-active", displayMode === "raw");
+  }
 }
 
-function notifyRoomChange(nextRoom) {
+function normalizeMode(value) {
+  return value === "tokens" ? "tokens" : "raw";
+}
+
+function notifyStateChange(nextRoom, nextMode) {
+  const state = JSON.stringify({
+    room: nextRoom,
+    mode: normalizeMode(nextMode),
+  });
+
   try {
-    window.localStorage.setItem(activeRoomStorageKey, nextRoom);
+    window.localStorage.setItem(activeRoomStorageKey, state);
   } catch (error) {
     // localStorage may be unavailable in some embedded browsers.
   }
 
   if (roomChannel) {
-    roomChannel.postMessage({ room: nextRoom });
+    roomChannel.postMessage({ room: nextRoom, mode: normalizeMode(nextMode) });
   }
 }
 
-function applyIncomingRoom(nextRoom) {
+function parseCachedState(value) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return {
+      room: parsed.room,
+      mode: normalizeMode(parsed.mode),
+    };
+  } catch (error) {
+    return { room: value, mode: "raw" };
+  }
+}
+
+function applyIncomingState(nextRoom, nextMode) {
   const normalized = normalizeRoom(nextRoom);
-  if (normalized === room) {
+  const normalizedMode = normalizeMode(nextMode);
+  if (normalized === room && normalizedMode === displayMode) {
     return;
   }
 
   room = normalized;
+  displayMode = normalizedMode;
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
@@ -84,13 +123,16 @@ async function fetchActiveRoom() {
     throw new Error(payload.detail || payload.error || "Title fetch failed");
   }
 
-  return normalizeRoom(payload.room);
+  return {
+    room: normalizeRoom(payload.room),
+    mode: normalizeMode(payload.mode),
+  };
 }
 
 async function syncActiveRoom() {
-  const activeRoom = await fetchActiveRoom();
-  applyIncomingRoom(activeRoom);
-  return activeRoom;
+  const activeState = await fetchActiveRoom();
+  applyIncomingState(activeState.room, activeState.mode);
+  return activeState;
 }
 
 function colorForWord(word) {
@@ -126,6 +168,14 @@ function colorForWord(word) {
 }
 
 function sizeForCount(count) {
+  if (displayMode === "raw") {
+    return {
+      size: isScreenMode ? 30 : 20,
+      bucket: 0,
+      maxBucket: 0,
+    };
+  }
+
   const levels = isScreenMode
     ? [15, 35, 55, 75, 95, 115, 135, 155]
     : [12, 18, 26, 36, 48, 62, 78, 96];
@@ -251,7 +301,7 @@ function render(words) {
     }
 
     const chip = document.createElement("span");
-    chip.className = "word-chip";
+    chip.className = `word-chip ${displayMode === "raw" ? "raw-chip" : "token-chip"}`;
     chip.textContent = label;
     chip.style.left = `${chosen.x}px`;
     chip.style.top = `${chosen.y}px`;
@@ -265,7 +315,7 @@ function render(words) {
 }
 
 async function fetchWords() {
-  const response = await fetch(`/api/words?room=${encodeURIComponent(room)}`, {
+  const response = await fetch(`/api/words?room=${encodeURIComponent(room)}&mode=${encodeURIComponent(displayMode)}`, {
     cache: "no-store",
   });
   const payload = await response.json();
@@ -279,7 +329,7 @@ async function fetchWords() {
 }
 
 async function submitWord(word) {
-  const response = await fetch(`/api/words?room=${encodeURIComponent(room)}`, {
+  const response = await fetch(`/api/words?room=${encodeURIComponent(room)}&mode=${encodeURIComponent(displayMode)}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -324,7 +374,7 @@ async function applyTitle(targetRoom, password) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room: nextRoom, password }),
+    body: JSON.stringify({ room: nextRoom, mode: displayMode, password }),
   });
   const payload = await response.json();
 
@@ -333,7 +383,32 @@ async function applyTitle(targetRoom, password) {
   }
 
   render([]);
+  displayMode = normalizeMode(payload.mode);
   return normalizeRoom(payload.room);
+}
+
+async function applyDisplayMode(nextMode) {
+  const password = requestAdminPassword("表示モード変更");
+  const normalizedMode = normalizeMode(nextMode);
+  const response = await fetch("/api/title", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ room, mode: normalizedMode, password, reset: false }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.error || "Mode apply failed");
+  }
+
+  room = normalizeRoom(payload.room);
+  displayMode = normalizeMode(payload.mode);
+  updateRoomUi();
+  notifyStateChange(room, displayMode);
+  await fetchWords();
+  setStatus(displayMode === "tokens" ? "Goワード表示に切り替えました。" : "原文表示に戻しました。");
 }
 
 function requestAdminPassword(actionLabel) {
@@ -391,7 +466,7 @@ async function replaceRoom(nextRoom) {
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
-  notifyRoomChange(room);
+  notifyStateChange(room, displayMode);
   await fetchWords();
   setStatus(isScreenMode ? "自動更新中" : "タイトルを適用し、表示をリセットしました。");
 }
@@ -426,6 +501,26 @@ if (form) {
   });
 }
 
+if (wordModeButton) {
+  wordModeButton.addEventListener("click", async () => {
+    try {
+      await applyDisplayMode("tokens");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
+if (rawModeButton) {
+  rawModeButton.addEventListener("click", async () => {
+    try {
+      await applyDisplayMode("raw");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
 updateRoomUi();
 syncActiveRoom()
   .catch(() => room)
@@ -438,14 +533,15 @@ startTitleRefresh();
 if (isScreenMode) {
   window.addEventListener("storage", (event) => {
     if (event.key === activeRoomStorageKey && event.newValue) {
-      applyIncomingRoom(event.newValue);
+      const state = parseCachedState(event.newValue);
+      applyIncomingState(state.room, state.mode);
     }
   });
 
   if (roomChannel) {
     roomChannel.addEventListener("message", (event) => {
       if (event.data?.room) {
-        applyIncomingRoom(event.data.room);
+        applyIncomingState(event.data.room, event.data.mode);
       }
     });
   }

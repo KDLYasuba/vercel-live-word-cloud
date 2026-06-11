@@ -8,6 +8,10 @@ const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "word_entries";
 const LOCAL_STORE_PATH = path.join(process.cwd(), ".local-word-entries.json");
 const STATE_ROOM = "__live_word_cloud_state__";
 
+function normalizeMode(value) {
+  return value === "tokens" ? "tokens" : "raw";
+}
+
 function hasSupabaseEnv() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -146,15 +150,46 @@ async function clearRoom(room) {
   });
 }
 
-async function getActiveRoom() {
+function parseActiveState(value) {
+  if (!value) {
+    return { room: "main", mode: "raw" };
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return {
+      room: parsed.room || "main",
+      mode: normalizeMode(parsed.mode),
+    };
+  } catch (error) {
+    return { room: value, mode: "raw" };
+  }
+}
+
+async function getActiveState() {
   const entries = await listEntries(STATE_ROOM);
-  return entries[0]?.word || "main";
+  return parseActiveState(entries[0]?.word);
+}
+
+async function getActiveRoom() {
+  const state = await getActiveState();
+  return state.room;
+}
+
+async function setActiveState(state) {
+  const nextState = {
+    room: state.room || "main",
+    mode: normalizeMode(state.mode),
+  };
+  await clearRoom(STATE_ROOM);
+  await insertEntry(STATE_ROOM, JSON.stringify(nextState));
+  return nextState;
 }
 
 async function setActiveRoom(room) {
-  await clearRoom(STATE_ROOM);
-  await insertEntry(STATE_ROOM, room);
-  return room;
+  const current = await getActiveState();
+  const state = await setActiveState({ room, mode: current.mode });
+  return state.room;
 }
 
 function aggregateEntries(entries) {
@@ -183,9 +218,12 @@ function getRoom(req) {
 module.exports = {
   aggregateEntries,
   clearRoom,
+  getActiveState,
   getActiveRoom,
   getRoom,
   insertEntry,
   listEntries,
+  normalizeMode,
+  setActiveState,
   setActiveRoom,
 };

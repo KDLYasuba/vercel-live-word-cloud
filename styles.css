@@ -140,6 +140,12 @@ body {
   border: 1px solid rgba(20, 49, 78, 0.16);
 }
 
+.ghost-button.is-active {
+  background: rgba(221, 109, 74, 0.12);
+  border-color: rgba(221, 109, 74, 0.38);
+  color: var(--accent);
+}
+
 .stack-form button:hover,
 .ghost-button:hover {
   opacity: 0.94;
@@ -197,6 +203,18 @@ body {
   font-weight: 800;
   text-shadow: 0 2px 10px rgba(255, 251, 244, 0.45);
   padding: 0.14em 0.18em;
+}
+
+.raw-chip {
+  max-width: min(34rem, 86%);
+  white-space: normal;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.token-chip {
+  white-space: nowrap;
 }
 
 .stats {
