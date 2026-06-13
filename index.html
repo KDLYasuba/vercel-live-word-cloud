@@ -12,7 +12,10 @@
         <section class="panel control-panel">
           <div class="panel-header">
             <h2>参加者入力</h2>
-            <p>現在のタイトル：<strong id="participant-room-title">main</strong></p>
+            <p class="participant-title">
+              <span>現在のタイトル：</span>
+              <strong id="participant-room-title">main</strong>
+            </p>
           </div>
 
           <form id="word-form" class="stack-form">
@@ -23,7 +26,6 @@
                 name="word"
                 type="text"
                 maxlength="120"
-                placeholder="例: 今日の感想を入力"
                 autocomplete="off"
                 required
               />
