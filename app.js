@@ -10,6 +10,8 @@ const input = document.getElementById("word-input");
 const screenLink = document.getElementById("screen-link");
 const wordModeButton = document.getElementById("word-mode-button");
 const rawModeButton = document.getElementById("raw-mode-button");
+const participantQr = document.getElementById("participant-qr");
+const participantUrlEl = document.getElementById("participant-url");
 
 const isScreenMode = window.location.pathname === "/screen";
 const params = new URLSearchParams(window.location.search);
@@ -57,6 +59,36 @@ function updateRoomUi() {
   if (rawModeButton) {
     rawModeButton.classList.toggle("is-active", displayMode === "raw");
   }
+
+  updateParticipantQr();
+}
+
+function getParticipantUrl() {
+  const url = new URL("/", window.location.origin);
+  url.searchParams.set("room", room);
+  return url.toString();
+}
+
+function updateParticipantQr() {
+  if (!participantQr) {
+    return;
+  }
+
+  const participantUrl = getParticipantUrl();
+  if (participantUrlEl) {
+    participantUrlEl.textContent = participantUrl.replace(/^https?:\/\//, "");
+  }
+
+  if (typeof qrcode !== "function") {
+    participantQr.removeAttribute("src");
+    participantQr.alt = "QRコードを生成できませんでした";
+    return;
+  }
+
+  const qr = qrcode(0, "M");
+  qr.addData(participantUrl);
+  qr.make();
+  participantQr.src = qr.createDataURL(5, 8);
 }
 
 function normalizeMode(value) {

@@ -7,6 +7,7 @@
     "deploy": "vercel"
   },
   "dependencies": {
+    "qrcode-generator": "^2.0.4",
     "vercel": "^50.41.0"
   }
 }

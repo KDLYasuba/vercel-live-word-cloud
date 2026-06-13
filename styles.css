@@ -303,6 +303,44 @@ body {
   line-height: 1.1;
 }
 
+.participant-qr-card {
+  position: fixed;
+  top: clamp(12px, 1.8vw, 26px);
+  right: clamp(14px, 2vw, 32px);
+  z-index: 22;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: clamp(118px, 10vw, 164px);
+  padding: 10px;
+  border: 1px solid rgba(20, 49, 78, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 251, 244, 0.92);
+  box-shadow: 0 16px 34px rgba(20, 49, 78, 0.12);
+}
+
+.participant-qr-card span {
+  color: rgba(20, 49, 78, 0.76);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.participant-qr-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.participant-qr-card small {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(20, 49, 78, 0.68);
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .event-logo {
   position: fixed;
   right: clamp(14px, 2vw, 32px);
