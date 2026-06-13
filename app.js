@@ -3,6 +3,7 @@ const statusEl = document.getElementById("status");
 const totalCountEl = document.getElementById("total-count");
 const uniqueCountEl = document.getElementById("unique-count");
 const currentRoomEl = document.getElementById("current-room");
+const participantRoomTitleEl = document.getElementById("participant-room-title");
 const roomForm = document.getElementById("room-form");
 const roomInput = document.getElementById("room-input");
 const form = document.getElementById("word-form");
@@ -44,6 +45,10 @@ function readCachedRoom() {
 function updateRoomUi() {
   if (currentRoomEl) {
     currentRoomEl.textContent = room;
+  }
+
+  if (participantRoomTitleEl) {
+    participantRoomTitleEl.textContent = room;
   }
 
   if (roomInput) {
