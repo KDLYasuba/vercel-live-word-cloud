@@ -19,12 +19,19 @@ const participantUrlEl = document.getElementById("participant-url");
 const isScreenMode = window.location.pathname === "/screen";
 const params = new URLSearchParams(window.location.search);
 const activeRoomStorageKey = "vercel-live-word-cloud-active-room";
+const wordUpdateStorageKey = "vercel-live-word-cloud-word-update";
 const roomChannel = "BroadcastChannel" in window ? new BroadcastChannel("vercel-live-word-cloud-room") : null;
+const activeRefreshMs = 6000;
+const idleTimeoutMs = 120000;
+const idleCheckMs = 60000;
 const cachedState = parseCachedState(readCachedRoom());
 let room = normalizeRoom(params.get("room") || cachedState.room || "main");
 let displayMode = normalizeMode(cachedState.mode);
 let refreshTimer = null;
+let idleCheckTimer = null;
 let titleRefreshTimer = null;
+let lastWordsSignature = "";
+let lastWordsChangedAt = Date.now();
 
 function normalizeRoom(value) {
   return String(value || "main")
@@ -142,6 +149,24 @@ function notifyStateChange(nextRoom, nextMode) {
   }
 }
 
+function notifyWordsChanged() {
+  const payload = {
+    room,
+    mode: displayMode,
+    updatedAt: Date.now(),
+  };
+
+  try {
+    window.localStorage.setItem(wordUpdateStorageKey, JSON.stringify(payload));
+  } catch (error) {
+    // localStorage may be unavailable in some embedded browsers.
+  }
+
+  if (roomChannel) {
+    roomChannel.postMessage({ ...payload, wordsChanged: true });
+  }
+}
+
 function parseCachedState(value) {
   if (!value) {
     return {};
@@ -173,6 +198,27 @@ function applyIncomingState(nextRoom, nextMode) {
   fetchWords()
     .then(() => setStatus(isScreenMode ? "自動更新中" : "タイトルを切り替えました。"))
     .catch((error) => setStatus(error.message));
+}
+
+function getWordsSignature(words) {
+  return JSON.stringify(words.map((item) => [item.word, item.count]));
+}
+
+function handleFetchedWords(words, options = {}) {
+  const nextSignature = getWordsSignature(words);
+  const isFirstLoad = !lastWordsSignature;
+  const changed = nextSignature !== lastWordsSignature;
+
+  if (changed) {
+    lastWordsSignature = nextSignature;
+    lastWordsChangedAt = Date.now();
+  }
+
+  if (changed || isFirstLoad || options.forceRender) {
+    render(words);
+  }
+
+  return { changed, isFirstLoad };
 }
 
 async function fetchActiveRoom() {
@@ -398,7 +444,7 @@ function render(words) {
   });
 }
 
-async function fetchWords() {
+async function fetchWords(options = {}) {
   const response = await fetch(`/api/words?room=${encodeURIComponent(room)}&mode=${encodeURIComponent(displayMode)}`, {
     cache: "no-store",
   });
@@ -408,8 +454,9 @@ async function fetchWords() {
     throw new Error(payload.detail || payload.error || "Fetch failed");
   }
 
-  render(payload.words || []);
-  return payload;
+  const words = payload.words || [];
+  const state = handleFetchedWords(words, options);
+  return { payload, ...state };
 }
 
 async function submitWord(word) {
@@ -426,7 +473,8 @@ async function submitWord(word) {
     throw new Error(payload.detail || payload.error || "Submit failed");
   }
 
-  render(payload.words || []);
+  handleFetchedWords(payload.words || [], { forceRender: true });
+  notifyWordsChanged();
 }
 
 async function resetRoom(targetRoom, password) {
@@ -514,13 +562,19 @@ function startAutoRefresh() {
     return;
   }
 
+  stopIdleCheck();
   refreshTimer = window.setInterval(() => {
     fetchWords()
-      .then(() => {
-        setStatus(`${new Date().toLocaleTimeString("ja-JP")} 更新`);
+      .then(({ changed }) => {
+        if (!changed && Date.now() - lastWordsChangedAt >= idleTimeoutMs) {
+          enterIdleMode();
+          return;
+        }
+
+        setStatus(changed ? `${new Date().toLocaleTimeString("ja-JP")} 更新` : "自動更新中");
       })
       .catch((error) => setStatus(error.message));
-  }, 6000);
+  }, activeRefreshMs);
 }
 
 function stopAutoRefresh() {
@@ -530,6 +584,54 @@ function stopAutoRefresh() {
 
   window.clearInterval(refreshTimer);
   refreshTimer = null;
+}
+
+function startIdleCheck() {
+  if (!isScreenMode || document.hidden || idleCheckTimer) {
+    return;
+  }
+
+  idleCheckTimer = window.setInterval(() => {
+    fetchWords()
+      .then(({ changed }) => {
+        if (!changed) {
+          return;
+        }
+
+        stopIdleCheck();
+        startAutoRefresh();
+        setStatus(`${new Date().toLocaleTimeString("ja-JP")} 新しい投稿を検知`);
+      })
+      .catch((error) => setStatus(error.message));
+  }, idleCheckMs);
+}
+
+function stopIdleCheck() {
+  if (!idleCheckTimer) {
+    return;
+  }
+
+  window.clearInterval(idleCheckTimer);
+  idleCheckTimer = null;
+}
+
+function enterIdleMode() {
+  stopAutoRefresh();
+  startIdleCheck();
+  setStatus("2分間更新がないため待機中");
+}
+
+function resumeAutoRefreshForWordUpdate() {
+  if (!isScreenMode || document.hidden) {
+    return;
+  }
+
+  lastWordsChangedAt = Date.now();
+  stopIdleCheck();
+  startAutoRefresh();
+  fetchWords({ forceRender: true })
+    .then(() => setStatus(`${new Date().toLocaleTimeString("ja-JP")} 新しい投稿を検知`))
+    .catch((error) => setStatus(error.message));
 }
 
 function startTitleRefresh() {
@@ -633,12 +735,26 @@ if (isScreenMode) {
       const state = parseCachedState(event.newValue);
       applyIncomingState(state.room, state.mode);
     }
+
+    if (event.key === wordUpdateStorageKey && event.newValue) {
+      try {
+        const payload = JSON.parse(event.newValue);
+        if (normalizeRoom(payload.room) === room) {
+          resumeAutoRefreshForWordUpdate();
+        }
+      } catch (error) {
+        resumeAutoRefreshForWordUpdate();
+      }
+    }
   });
 
   if (roomChannel) {
     roomChannel.addEventListener("message", (event) => {
       if (event.data?.room) {
         applyIncomingState(event.data.room, event.data.mode);
+      }
+      if (event.data?.wordsChanged && normalizeRoom(event.data.room) === room) {
+        resumeAutoRefreshForWordUpdate();
       }
     });
   }
@@ -648,12 +764,19 @@ if (isScreenMode) {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       stopAutoRefresh();
+      stopIdleCheck();
       setStatus("画面が非表示のため更新停止中");
       return;
     }
 
     fetchWords()
-      .then(() => setStatus("自動更新中"))
+      .then(({ changed }) => {
+        if (!changed && Date.now() - lastWordsChangedAt >= idleTimeoutMs) {
+          enterIdleMode();
+          return;
+        }
+        setStatus("自動更新中");
+      })
       .catch((error) => setStatus(error.message));
     startAutoRefresh();
   });
