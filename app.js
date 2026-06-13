@@ -11,6 +11,8 @@ const screenLink = document.getElementById("screen-link");
 const wordModeButton = document.getElementById("word-mode-button");
 const rawModeButton = document.getElementById("raw-mode-button");
 const participantQr = document.getElementById("participant-qr");
+const participantQrCard = document.querySelector(".participant-qr-card");
+const participantQrBackdrop = document.getElementById("participant-qr-backdrop");
 const participantUrlEl = document.getElementById("participant-url");
 
 const isScreenMode = window.location.pathname === "/screen";
@@ -89,6 +91,29 @@ function updateParticipantQr() {
   qr.addData(participantUrl);
   qr.make();
   participantQr.src = qr.createDataURL(5, 8);
+}
+
+function setParticipantQrExpanded(isExpanded) {
+  if (!participantQrCard) {
+    return;
+  }
+
+  participantQrCard.classList.toggle("is-expanded", isExpanded);
+  if (participantQrBackdrop) {
+    participantQrBackdrop.classList.toggle("is-visible", isExpanded);
+  }
+  participantQrCard.setAttribute(
+    "aria-label",
+    isExpanded ? "参加者用フォームのQRコードを右上に戻す" : "参加者用フォームのQRコードを拡大表示",
+  );
+}
+
+function toggleParticipantQr() {
+  if (!participantQrCard) {
+    return;
+  }
+
+  setParticipantQrExpanded(!participantQrCard.classList.contains("is-expanded"));
 }
 
 function normalizeMode(value) {
@@ -572,6 +597,20 @@ if (rawModeButton) {
       setStatus(error.message);
     }
   });
+}
+
+if (participantQrCard) {
+  participantQrCard.addEventListener("click", toggleParticipantQr);
+  participantQrCard.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleParticipantQr();
+    }
+  });
+}
+
+if (participantQrBackdrop) {
+  participantQrBackdrop.addEventListener("click", () => setParticipantQrExpanded(false));
 }
 
 updateRoomUi();

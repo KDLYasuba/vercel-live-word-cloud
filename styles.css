@@ -317,12 +317,54 @@ body {
   border-radius: 14px;
   background: rgba(255, 251, 244, 0.92);
   box-shadow: 0 16px 34px rgba(20, 49, 78, 0.12);
+  cursor: pointer;
+  transition:
+    top 220ms ease,
+    right 220ms ease,
+    width 220ms ease,
+    padding 220ms ease,
+    transform 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.participant-qr-card:focus-visible {
+  outline: 4px solid rgba(221, 109, 74, 0.38);
+  outline-offset: 4px;
+}
+
+.participant-qr-card.is-expanded {
+  top: 50%;
+  right: 50%;
+  z-index: 42;
+  width: clamp(240px, 28vw, 420px);
+  padding: clamp(14px, 1.6vw, 22px);
+  transform: translate(50%, -50%);
+  box-shadow: 0 28px 80px rgba(20, 49, 78, 0.3);
+}
+
+.participant-qr-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(20, 49, 78, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.participant-qr-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .participant-qr-card span {
   color: rgba(20, 49, 78, 0.76);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.participant-qr-card.is-expanded span {
+  font-size: clamp(0.95rem, 1.3vw, 1.2rem);
 }
 
 .participant-qr-card img {
@@ -339,6 +381,10 @@ body {
   font-size: 0.62rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.participant-qr-card.is-expanded small {
+  font-size: clamp(0.7rem, 1vw, 0.92rem);
 }
 
 .event-logo {
