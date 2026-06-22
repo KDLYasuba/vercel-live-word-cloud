@@ -183,6 +183,12 @@ body {
   font-size: 1.08em;
 }
 
+.field-note {
+  margin: -6px 0 2px;
+  color: rgba(20, 49, 78, 0.66);
+  font-size: 0.86rem;
+}
+
 .room-info {
   display: inline-flex;
   gap: 10px;

@@ -180,7 +180,7 @@ module.exports = async (req, res) => {
       const normalized = String(req.body?.word || "")
         .trim()
         .replace(/\s+/g, " ")
-        .slice(0, 120);
+        .slice(0, 30);
 
       if (!normalized) {
         res.status(400).json({ error: "Word is required." });
