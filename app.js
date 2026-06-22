@@ -9,6 +9,7 @@ const roomInput = document.getElementById("room-input");
 const form = document.getElementById("word-form");
 const input = document.getElementById("word-input");
 const screenLink = document.getElementById("screen-link");
+const participantLink = document.getElementById("participant-link");
 const wordModeButton = document.getElementById("word-mode-button");
 const rawModeButton = document.getElementById("raw-mode-button");
 const participantQr = document.getElementById("participant-qr");
@@ -25,7 +26,9 @@ const activeRefreshMs = 6000;
 const idleTimeoutMs = 120000;
 const idleCheckMs = 60000;
 const cachedState = parseCachedState(readCachedRoom());
+const hasRoomParam = params.has("room");
 let room = normalizeRoom(params.get("room") || cachedState.room || "main");
+let displayTitle = normalizeRoom(hasRoomParam ? room : cachedState.title || room);
 let displayMode = normalizeMode(cachedState.mode);
 let refreshTimer = null;
 let idleCheckTimer = null;
@@ -51,19 +54,23 @@ function readCachedRoom() {
 
 function updateRoomUi() {
   if (currentRoomEl) {
-    currentRoomEl.textContent = room;
+    currentRoomEl.textContent = displayTitle;
   }
 
   if (participantRoomTitleEl) {
-    participantRoomTitleEl.textContent = room;
+    participantRoomTitleEl.textContent = displayTitle;
   }
 
   if (roomInput) {
-    roomInput.value = room;
+    roomInput.value = displayTitle;
   }
 
   if (screenLink) {
     screenLink.href = `/screen?room=${encodeURIComponent(room)}`;
+  }
+
+  if (participantLink) {
+    participantLink.href = `/?room=${encodeURIComponent(room)}`;
   }
 
   if (wordModeButton) {
@@ -132,9 +139,10 @@ function normalizeMode(value) {
   return value === "tokens" ? "tokens" : "raw";
 }
 
-function notifyStateChange(nextRoom, nextMode) {
+function notifyStateChange(nextRoom, nextMode, nextTitle = displayTitle) {
   const state = JSON.stringify({
     room: nextRoom,
+    title: nextTitle,
     mode: normalizeMode(nextMode),
   });
 
@@ -145,7 +153,7 @@ function notifyStateChange(nextRoom, nextMode) {
   }
 
   if (roomChannel) {
-    roomChannel.postMessage({ room: nextRoom, mode: normalizeMode(nextMode) });
+    roomChannel.postMessage({ room: nextRoom, title: nextTitle, mode: normalizeMode(nextMode) });
   }
 }
 
@@ -176,21 +184,24 @@ function parseCachedState(value) {
     const parsed = JSON.parse(value);
     return {
       room: parsed.room,
+      title: parsed.title,
       mode: normalizeMode(parsed.mode),
     };
   } catch (error) {
-    return { room: value, mode: "raw" };
+    return { room: value, title: value, mode: "raw" };
   }
 }
 
-function applyIncomingState(nextRoom, nextMode) {
+function applyIncomingState(nextRoom, nextMode, nextTitle) {
   const normalized = normalizeRoom(nextRoom);
+  const normalizedTitle = normalizeRoom(nextTitle || normalized);
   const normalizedMode = normalizeMode(nextMode);
-  if (normalized === room && normalizedMode === displayMode) {
+  if (normalized === room && normalizedMode === displayMode && normalizedTitle === displayTitle) {
     return;
   }
 
   room = normalized;
+  displayTitle = normalizedTitle;
   displayMode = normalizedMode;
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
@@ -222,7 +233,8 @@ function handleFetchedWords(words, options = {}) {
 }
 
 async function fetchActiveRoom() {
-  const response = await fetch("/api/title", {
+  const titleUrl = hasRoomParam ? `/api/title?room=${encodeURIComponent(room)}` : "/api/title";
+  const response = await fetch(titleUrl, {
     cache: "no-store",
   });
   const payload = await response.json();
@@ -233,13 +245,14 @@ async function fetchActiveRoom() {
 
   return {
     room: normalizeRoom(payload.room),
+    title: normalizeRoom(payload.title || payload.room),
     mode: normalizeMode(payload.mode),
   };
 }
 
 async function syncActiveRoom() {
   const activeState = await fetchActiveRoom();
-  applyIncomingState(activeState.room, activeState.mode);
+  applyIncomingState(activeState.room, activeState.mode, activeState.title);
   return activeState;
 }
 
@@ -499,14 +512,14 @@ async function resetRoom(targetRoom, password) {
   render([]);
 }
 
-async function applyTitle(targetRoom, password) {
-  const nextRoom = normalizeRoom(targetRoom);
+async function applyTitle(nextTitle, password) {
+  const normalizedTitle = normalizeRoom(nextTitle);
   const response = await fetch("/api/title", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room: nextRoom, mode: displayMode, password }),
+    body: JSON.stringify({ room, title: normalizedTitle, mode: displayMode, password, scoped: true }),
   });
   const payload = await response.json();
 
@@ -515,6 +528,7 @@ async function applyTitle(targetRoom, password) {
   }
 
   render([]);
+  displayTitle = normalizeRoom(payload.title || payload.room);
   displayMode = normalizeMode(payload.mode);
   return normalizeRoom(payload.room);
 }
@@ -526,7 +540,7 @@ async function applyDisplayMode(nextMode) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room, mode: normalizedMode, reset: false }),
+    body: JSON.stringify({ room, title: displayTitle, mode: normalizedMode, reset: false, scoped: true }),
   });
   const payload = await response.json();
 
@@ -535,9 +549,10 @@ async function applyDisplayMode(nextMode) {
   }
 
   room = normalizeRoom(payload.room);
+  displayTitle = normalizeRoom(payload.title || payload.room);
   displayMode = normalizeMode(payload.mode);
   updateRoomUi();
-  notifyStateChange(room, displayMode);
+  notifyStateChange(room, displayMode, displayTitle);
   await fetchWords();
   setStatus(displayMode === "tokens" ? "Goワード表示に切り替えました。" : "原文表示に戻しました。");
 }
@@ -645,13 +660,13 @@ function startTitleRefresh() {
 }
 
 async function replaceRoom(nextRoom) {
-  const nextNormalizedRoom = normalizeRoom(nextRoom);
+  const nextTitle = normalizeRoom(nextRoom);
   const password = requestAdminPassword("タイトル適用");
-  room = await applyTitle(nextNormalizedRoom, password);
+  room = await applyTitle(nextTitle, password);
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
-  notifyStateChange(room, displayMode);
+  notifyStateChange(room, displayMode, displayTitle);
   await fetchWords();
   setStatus(isScreenMode ? "自動更新中" : "タイトルを適用し、表示をリセットしました。");
 }
@@ -733,7 +748,9 @@ if (isScreenMode) {
   window.addEventListener("storage", (event) => {
     if (event.key === activeRoomStorageKey && event.newValue) {
       const state = parseCachedState(event.newValue);
-      applyIncomingState(state.room, state.mode);
+      if (!hasRoomParam || normalizeRoom(state.room) === room) {
+        applyIncomingState(state.room, state.mode, state.title);
+      }
     }
 
     if (event.key === wordUpdateStorageKey && event.newValue) {
@@ -751,7 +768,9 @@ if (isScreenMode) {
   if (roomChannel) {
     roomChannel.addEventListener("message", (event) => {
       if (event.data?.room) {
-        applyIncomingState(event.data.room, event.data.mode);
+        if (!hasRoomParam || normalizeRoom(event.data.room) === room) {
+          applyIncomingState(event.data.room, event.data.mode, event.data.title);
+        }
       }
       if (event.data?.wordsChanged && normalizeRoom(event.data.room) === room) {
         resumeAutoRefreshForWordUpdate();

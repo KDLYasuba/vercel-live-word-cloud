@@ -7,6 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY =
 const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "word_entries";
 const LOCAL_STORE_PATH = path.join(process.cwd(), ".local-word-entries.json");
 const STATE_ROOM = "__live_word_cloud_state__";
+const ROOM_STATE_PREFIX = "__live_word_cloud_room_state__:";
 
 function normalizeMode(value) {
   return value === "tokens" ? "tokens" : "raw";
@@ -152,17 +153,19 @@ async function clearRoom(room) {
 
 function parseActiveState(value) {
   if (!value) {
-    return { room: "main", mode: "raw" };
+    return { room: "main", title: "main", mode: "raw" };
   }
 
   try {
     const parsed = JSON.parse(value);
+    const room = parsed.room || "main";
     return {
-      room: parsed.room || "main",
+      room,
+      title: parsed.title || room,
       mode: normalizeMode(parsed.mode),
     };
   } catch (error) {
-    return { room: value, mode: "raw" };
+    return { room: value, title: value, mode: "raw" };
   }
 }
 
@@ -177,12 +180,59 @@ async function getActiveRoom() {
 }
 
 async function setActiveState(state) {
+  const room = state.room || "main";
   const nextState = {
-    room: state.room || "main",
+    room,
+    title: state.title || room,
     mode: normalizeMode(state.mode),
   };
   await clearRoom(STATE_ROOM);
   await insertEntry(STATE_ROOM, JSON.stringify(nextState));
+  return nextState;
+}
+
+function getRoomStateKey(room) {
+  return `${ROOM_STATE_PREFIX}${room || "main"}`;
+}
+
+async function getRoomState(room) {
+  const normalizedRoom = room || "main";
+  const entries = await listEntries(getRoomStateKey(normalizedRoom));
+  if (entries[0]?.word) {
+    const state = parseActiveState(entries[0].word);
+    return {
+      room: normalizedRoom,
+      title: state.title || normalizedRoom,
+      mode: normalizeMode(state.mode),
+    };
+  }
+
+  const legacy = await getActiveState();
+  if (legacy.room === normalizedRoom) {
+    return {
+      room: normalizedRoom,
+      title: legacy.title || normalizedRoom,
+      mode: normalizeMode(legacy.mode),
+    };
+  }
+
+  return {
+    room: normalizedRoom,
+    title: normalizedRoom,
+    mode: "raw",
+  };
+}
+
+async function setRoomState(state) {
+  const room = state.room || "main";
+  const nextState = {
+    room,
+    title: state.title || room,
+    mode: normalizeMode(state.mode),
+  };
+  const stateKey = getRoomStateKey(room);
+  await clearRoom(stateKey);
+  await insertEntry(stateKey, JSON.stringify(nextState));
   return nextState;
 }
 
@@ -221,9 +271,11 @@ module.exports = {
   getActiveState,
   getActiveRoom,
   getRoom,
+  getRoomState,
   insertEntry,
   listEntries,
   normalizeMode,
   setActiveState,
   setActiveRoom,
+  setRoomState,
 };

@@ -1,8 +1,11 @@
 const {
   clearRoom,
   getActiveState,
+  getRoom,
+  getRoomState,
   normalizeMode,
   setActiveState,
+  setRoomState,
 } = require("./_supabase");
 
 function normalizeTitle(value) {
@@ -13,6 +16,16 @@ function normalizeTitle(value) {
     .slice(0, 64) || "main";
 }
 
+function normalizeOptionalTitle(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 64);
+
+  return normalized;
+}
+
 function getExpectedPassword() {
   return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "local-reset" : "");
 }
@@ -20,17 +33,19 @@ function getExpectedPassword() {
 module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
-      const state = await getActiveState();
+      const state = req.query?.room ? await getRoomState(getRoom(req)) : await getActiveState();
       res.status(200).json(state);
       return;
     }
 
     if (req.method === "POST") {
-      const current = await getActiveState();
-      const room = normalizeTitle(req.body?.room || current.room);
+      const requestedRoom = normalizeOptionalTitle(req.body?.room || req.query?.room || "");
+      const current = requestedRoom ? await getRoomState(requestedRoom) : await getActiveState();
+      const room = requestedRoom || normalizeTitle(current.room);
+      const title = normalizeTitle(req.body?.title || req.body?.roomTitle || req.body?.room || current.title || room);
       const mode = normalizeMode(req.body?.mode || current.mode);
       const shouldReset = req.body?.reset !== false;
-      const requiresPassword = shouldReset || room !== current.room;
+      const requiresPassword = shouldReset || title !== (current.title || current.room);
 
       if (requiresPassword) {
         const expectedPassword = getExpectedPassword();
@@ -51,7 +66,10 @@ module.exports = async (req, res) => {
         await clearRoom(room);
       }
 
-      const state = await setActiveState({ room, mode });
+      const state =
+        req.body?.scoped !== false || req.query?.room
+          ? await setRoomState({ room, title, mode })
+          : await setActiveState({ room, title, mode });
       res.status(200).json({ ok: true, ...state });
       return;
     }
