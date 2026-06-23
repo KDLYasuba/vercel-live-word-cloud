@@ -27,6 +27,7 @@ const idleTimeoutMs = 120000;
 const idleCheckMs = 60000;
 const cachedState = parseCachedState(readCachedRoom());
 const hasRoomParam = params.has("room");
+const usesRoomScopedState = hasRoomParam || Boolean(roomForm) || isScreenMode;
 let room = normalizeRoom(params.get("room") || cachedState.room || "main");
 let displayTitle = normalizeRoom(hasRoomParam ? room : cachedState.title || room);
 let displayMode = normalizeMode(cachedState.mode);
@@ -233,7 +234,7 @@ function handleFetchedWords(words, options = {}) {
 }
 
 async function fetchActiveRoom() {
-  const titleUrl = hasRoomParam ? `/api/title?room=${encodeURIComponent(room)}` : "/api/title";
+  const titleUrl = usesRoomScopedState ? `/api/title?room=${encodeURIComponent(room)}` : "/api/title";
   const response = await fetch(titleUrl, {
     cache: "no-store",
   });
@@ -748,7 +749,7 @@ if (isScreenMode) {
   window.addEventListener("storage", (event) => {
     if (event.key === activeRoomStorageKey && event.newValue) {
       const state = parseCachedState(event.newValue);
-      if (!hasRoomParam || normalizeRoom(state.room) === room) {
+      if (!usesRoomScopedState || normalizeRoom(state.room) === room) {
         applyIncomingState(state.room, state.mode, state.title);
       }
     }
@@ -768,7 +769,7 @@ if (isScreenMode) {
   if (roomChannel) {
     roomChannel.addEventListener("message", (event) => {
       if (event.data?.room) {
-        if (!hasRoomParam || normalizeRoom(event.data.room) === room) {
+        if (!usesRoomScopedState || normalizeRoom(event.data.room) === room) {
           applyIncomingState(event.data.room, event.data.mode, event.data.title);
         }
       }
