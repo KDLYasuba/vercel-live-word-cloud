@@ -281,7 +281,7 @@ async function fetchActiveRoom() {
 
   return {
     room: normalizeRoom(payload.room),
-    title: normalizeRoom(hasRoomParam && !roomForm ? payload.room : payload.title || payload.room),
+    title: normalizeRoom(hasRoomParam ? payload.room : payload.title || payload.room),
     mode: normalizeMode(payload.mode),
     accepting: payload.accepting !== false,
   };
