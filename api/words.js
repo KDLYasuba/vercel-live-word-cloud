@@ -1,6 +1,7 @@
 const {
   aggregateEntries,
   getRoom,
+  getRoomState,
   insertEntry,
   listEntries,
   normalizeMode,
@@ -177,6 +178,12 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
+      const state = await getRoomState(room);
+      if (state.accepting === false) {
+        res.status(403).json({ error: "This room is not accepting submissions." });
+        return;
+      }
+
       const normalized = String(req.body?.word || "")
         .trim()
         .replace(/\s+/g, " ")

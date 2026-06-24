@@ -153,7 +153,7 @@ async function clearRoom(room) {
 
 function parseActiveState(value) {
   if (!value) {
-    return { room: "main", title: "main", mode: "raw" };
+    return { room: "main", title: "main", mode: "raw", accepting: true };
   }
 
   try {
@@ -163,9 +163,10 @@ function parseActiveState(value) {
       room,
       title: parsed.title || room,
       mode: normalizeMode(parsed.mode),
+      accepting: parsed.accepting !== false,
     };
   } catch (error) {
-    return { room: value, title: value, mode: "raw" };
+    return { room: value, title: value, mode: "raw", accepting: true };
   }
 }
 
@@ -185,6 +186,7 @@ async function setActiveState(state) {
     room,
     title: state.title || room,
     mode: normalizeMode(state.mode),
+    accepting: state.accepting !== false,
   };
   await clearRoom(STATE_ROOM);
   await insertEntry(STATE_ROOM, JSON.stringify(nextState));
@@ -204,6 +206,7 @@ async function getRoomState(room) {
       room: normalizedRoom,
       title: state.title || normalizedRoom,
       mode: normalizeMode(state.mode),
+      accepting: state.accepting !== false,
     };
   }
 
@@ -213,6 +216,7 @@ async function getRoomState(room) {
       room: normalizedRoom,
       title: legacy.title || normalizedRoom,
       mode: normalizeMode(legacy.mode),
+      accepting: legacy.accepting !== false,
     };
   }
 
@@ -220,6 +224,7 @@ async function getRoomState(room) {
     room: normalizedRoom,
     title: normalizedRoom,
     mode: "raw",
+    accepting: true,
   };
 }
 
@@ -229,6 +234,7 @@ async function setRoomState(state) {
     room,
     title: state.title || room,
     mode: normalizeMode(state.mode),
+    accepting: state.accepting !== false,
   };
   const stateKey = getRoomStateKey(room);
   await clearRoom(stateKey);

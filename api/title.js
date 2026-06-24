@@ -44,8 +44,11 @@ module.exports = async (req, res) => {
       const room = requestedRoom || normalizeTitle(current.room);
       const title = normalizeTitle(req.body?.title || req.body?.roomTitle || req.body?.room || current.title || room);
       const mode = normalizeMode(req.body?.mode || current.mode);
+      const accepting =
+        typeof req.body?.accepting === "boolean" ? req.body.accepting : current.accepting !== false;
       const shouldReset = req.body?.reset !== false;
-      const requiresPassword = shouldReset || title !== (current.title || current.room);
+      const requiresPassword =
+        shouldReset || title !== (current.title || current.room) || accepting !== (current.accepting !== false);
 
       if (requiresPassword) {
         const expectedPassword = getExpectedPassword();
@@ -68,8 +71,8 @@ module.exports = async (req, res) => {
 
       const state =
         req.body?.scoped !== false || req.query?.room
-          ? await setRoomState({ room, title, mode })
-          : await setActiveState({ room, title, mode });
+          ? await setRoomState({ room, title, mode, accepting })
+          : await setActiveState({ room, title, mode, accepting });
       res.status(200).json({ ok: true, ...state });
       return;
     }

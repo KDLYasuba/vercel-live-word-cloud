@@ -189,6 +189,16 @@ body {
   font-size: 0.86rem;
 }
 
+.acceptance-notice {
+  margin: 8px 0 0;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
 .room-info {
   display: inline-flex;
   gap: 10px;

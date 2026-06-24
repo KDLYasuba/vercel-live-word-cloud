@@ -8,10 +8,13 @@ const roomForm = document.getElementById("room-form");
 const roomInput = document.getElementById("room-input");
 const form = document.getElementById("word-form");
 const input = document.getElementById("word-input");
+const submitButton = form?.querySelector('button[type="submit"]');
+const acceptanceNotice = document.getElementById("acceptance-notice");
 const screenLink = document.getElementById("screen-link");
 const participantLink = document.getElementById("participant-link");
 const wordModeButton = document.getElementById("word-mode-button");
 const rawModeButton = document.getElementById("raw-mode-button");
+const acceptanceToggleButton = document.getElementById("acceptance-toggle-button");
 const participantQr = document.getElementById("participant-qr");
 const participantQrCard = document.querySelector(".participant-qr-card");
 const participantQrBackdrop = document.getElementById("participant-qr-backdrop");
@@ -31,6 +34,7 @@ const usesRoomScopedState = hasRoomParam || Boolean(roomForm) || isScreenMode;
 let room = normalizeRoom(params.get("room") || cachedState.room || "main");
 let displayTitle = normalizeRoom(hasRoomParam ? room : cachedState.title || room);
 let displayMode = normalizeMode(cachedState.mode);
+let isAccepting = cachedState.accepting !== false;
 let refreshTimer = null;
 let idleCheckTimer = null;
 let titleRefreshTimer = null;
@@ -80,6 +84,23 @@ function updateRoomUi() {
 
   if (rawModeButton) {
     rawModeButton.classList.toggle("is-active", displayMode === "raw");
+  }
+
+  if (acceptanceToggleButton) {
+    acceptanceToggleButton.textContent = isAccepting ? "受付を停止" : "受付を再開";
+    acceptanceToggleButton.classList.toggle("is-active", !isAccepting);
+  }
+
+  if (input) {
+    input.disabled = !isAccepting;
+  }
+
+  if (submitButton) {
+    submitButton.disabled = !isAccepting;
+  }
+
+  if (acceptanceNotice) {
+    acceptanceNotice.classList.toggle("is-hidden", isAccepting);
   }
 
   updateParticipantQr();
@@ -140,11 +161,12 @@ function normalizeMode(value) {
   return value === "tokens" ? "tokens" : "raw";
 }
 
-function notifyStateChange(nextRoom, nextMode, nextTitle = displayTitle) {
+function notifyStateChange(nextRoom, nextMode, nextTitle = displayTitle, nextAccepting = isAccepting) {
   const state = JSON.stringify({
     room: nextRoom,
     title: nextTitle,
     mode: normalizeMode(nextMode),
+    accepting: nextAccepting !== false,
   });
 
   try {
@@ -154,7 +176,12 @@ function notifyStateChange(nextRoom, nextMode, nextTitle = displayTitle) {
   }
 
   if (roomChannel) {
-    roomChannel.postMessage({ room: nextRoom, title: nextTitle, mode: normalizeMode(nextMode) });
+    roomChannel.postMessage({
+      room: nextRoom,
+      title: nextTitle,
+      mode: normalizeMode(nextMode),
+      accepting: nextAccepting !== false,
+    });
   }
 }
 
@@ -187,23 +214,31 @@ function parseCachedState(value) {
       room: parsed.room,
       title: parsed.title,
       mode: normalizeMode(parsed.mode),
+      accepting: parsed.accepting !== false,
     };
   } catch (error) {
-    return { room: value, title: value, mode: "raw" };
+    return { room: value, title: value, mode: "raw", accepting: true };
   }
 }
 
-function applyIncomingState(nextRoom, nextMode, nextTitle) {
+function applyIncomingState(nextRoom, nextMode, nextTitle, nextAccepting = true) {
   const normalized = normalizeRoom(nextRoom);
   const normalizedTitle = normalizeRoom(nextTitle || normalized);
   const normalizedMode = normalizeMode(nextMode);
-  if (normalized === room && normalizedMode === displayMode && normalizedTitle === displayTitle) {
+  const normalizedAccepting = nextAccepting !== false;
+  if (
+    normalized === room &&
+    normalizedMode === displayMode &&
+    normalizedTitle === displayTitle &&
+    normalizedAccepting === isAccepting
+  ) {
     return;
   }
 
   room = normalized;
   displayTitle = normalizedTitle;
   displayMode = normalizedMode;
+  isAccepting = normalizedAccepting;
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
@@ -248,12 +283,13 @@ async function fetchActiveRoom() {
     room: normalizeRoom(payload.room),
     title: normalizeRoom(payload.title || payload.room),
     mode: normalizeMode(payload.mode),
+    accepting: payload.accepting !== false,
   };
 }
 
 async function syncActiveRoom() {
   const activeState = await fetchActiveRoom();
-  applyIncomingState(activeState.room, activeState.mode, activeState.title);
+  applyIncomingState(activeState.room, activeState.mode, activeState.title, activeState.accepting);
   return activeState;
 }
 
@@ -520,7 +556,7 @@ async function applyTitle(nextTitle, password) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room, title: normalizedTitle, mode: displayMode, password, scoped: true }),
+    body: JSON.stringify({ room, title: normalizedTitle, mode: displayMode, accepting: isAccepting, password, scoped: true }),
   });
   const payload = await response.json();
 
@@ -531,6 +567,7 @@ async function applyTitle(nextTitle, password) {
   render([]);
   displayTitle = normalizeRoom(payload.title || payload.room);
   displayMode = normalizeMode(payload.mode);
+  isAccepting = payload.accepting !== false;
   return normalizeRoom(payload.room);
 }
 
@@ -541,7 +578,7 @@ async function applyDisplayMode(nextMode) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room, title: displayTitle, mode: normalizedMode, reset: false, scoped: true }),
+    body: JSON.stringify({ room, title: displayTitle, mode: normalizedMode, accepting: isAccepting, reset: false, scoped: true }),
   });
   const payload = await response.json();
 
@@ -552,10 +589,43 @@ async function applyDisplayMode(nextMode) {
   room = normalizeRoom(payload.room);
   displayTitle = normalizeRoom(payload.title || payload.room);
   displayMode = normalizeMode(payload.mode);
+  isAccepting = payload.accepting !== false;
   updateRoomUi();
-  notifyStateChange(room, displayMode, displayTitle);
+  notifyStateChange(room, displayMode, displayTitle, isAccepting);
   await fetchWords();
   setStatus(displayMode === "tokens" ? "Goワード表示に切り替えました。" : "原文表示に戻しました。");
+}
+
+async function applyAcceptance(nextAccepting) {
+  const password = requestAdminPassword(nextAccepting ? "受付再開" : "受付停止");
+  const response = await fetch("/api/title", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      room,
+      title: displayTitle,
+      mode: displayMode,
+      accepting: nextAccepting,
+      password,
+      reset: false,
+      scoped: true,
+    }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.error || "Acceptance update failed");
+  }
+
+  room = normalizeRoom(payload.room);
+  displayTitle = normalizeRoom(payload.title || payload.room);
+  displayMode = normalizeMode(payload.mode);
+  isAccepting = payload.accepting !== false;
+  updateRoomUi();
+  notifyStateChange(room, displayMode, displayTitle, isAccepting);
+  setStatus(isAccepting ? "参加受付を再開しました。" : "参加受付を停止しました。");
 }
 
 function requestAdminPassword(actionLabel) {
@@ -667,7 +737,7 @@ async function replaceRoom(nextRoom) {
   params.set("room", room);
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
-  notifyStateChange(room, displayMode, displayTitle);
+  notifyStateChange(room, displayMode, displayTitle, isAccepting);
   await fetchWords();
   setStatus(isScreenMode ? "自動更新中" : "タイトルを適用し、表示をリセットしました。");
 }
@@ -686,6 +756,11 @@ if (roomForm) {
 if (form) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!isAccepting) {
+      setStatus("このルームは受付を終了しました。");
+      return;
+    }
+
     const word = input.value.trim();
     if (!word) {
       return;
@@ -722,6 +797,16 @@ if (rawModeButton) {
   });
 }
 
+if (acceptanceToggleButton) {
+  acceptanceToggleButton.addEventListener("click", async () => {
+    try {
+      await applyAcceptance(!isAccepting);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
 if (participantQrCard) {
   participantQrCard.addEventListener("click", toggleParticipantQr);
   participantQrCard.addEventListener("keydown", (event) => {
@@ -750,7 +835,7 @@ if (isScreenMode) {
     if (event.key === activeRoomStorageKey && event.newValue) {
       const state = parseCachedState(event.newValue);
       if (!usesRoomScopedState || normalizeRoom(state.room) === room) {
-        applyIncomingState(state.room, state.mode, state.title);
+        applyIncomingState(state.room, state.mode, state.title, state.accepting);
       }
     }
 
@@ -770,7 +855,7 @@ if (isScreenMode) {
     roomChannel.addEventListener("message", (event) => {
       if (event.data?.room) {
         if (!usesRoomScopedState || normalizeRoom(event.data.room) === room) {
-          applyIncomingState(event.data.room, event.data.mode, event.data.title);
+          applyIncomingState(event.data.room, event.data.mode, event.data.title, event.data.accepting);
         }
       }
       if (event.data?.wordsChanged && normalizeRoom(event.data.room) === room) {
