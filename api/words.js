@@ -1,5 +1,4 @@
 const {
-  aggregateEntries,
   getRoom,
   getRoomState,
   insertEntry,
@@ -162,6 +161,13 @@ function aggregateTokens(entries) {
     .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, "ja"));
 }
 
+function listRawWords(entries) {
+  return entries.map((entry) => ({
+    word: entry.word,
+    count: 1,
+  }));
+}
+
 module.exports = async (req, res) => {
   try {
     const room = getRoom(req);
@@ -172,7 +178,7 @@ module.exports = async (req, res) => {
       res.status(200).json({
         room,
         mode,
-        words: mode === "tokens" ? aggregateTokens(entries) : aggregateEntries(entries),
+        words: mode === "tokens" ? aggregateTokens(entries) : listRawWords(entries),
       });
       return;
     }
@@ -200,7 +206,7 @@ module.exports = async (req, res) => {
         ok: true,
         room,
         mode,
-        words: mode === "tokens" ? aggregateTokens(entries) : aggregateEntries(entries),
+        words: mode === "tokens" ? aggregateTokens(entries) : listRawWords(entries),
       });
       return;
     }

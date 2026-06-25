@@ -419,7 +419,9 @@ function render(words) {
     totalCountEl.textContent = String(total);
   }
   if (uniqueCountEl) {
-    uniqueCountEl.textContent = String(words.length);
+    const uniqueCount =
+      displayMode === "raw" ? new Set(words.map((item) => item.word)).size : words.length;
+    uniqueCountEl.textContent = String(uniqueCount);
   }
 
   if (!words.length) {
