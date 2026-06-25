@@ -8,6 +8,7 @@ const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "word_entries";
 const LOCAL_STORE_PATH = path.join(process.cwd(), ".local-word-entries.json");
 const STATE_ROOM = "__live_word_cloud_state__";
 const ROOM_STATE_PREFIX = "__live_word_cloud_room_state__:";
+const ENTRY_FETCH_LIMIT = 2000;
 
 function normalizeMode(value) {
   return value === "tokens" ? "tokens" : "raw";
@@ -51,7 +52,7 @@ async function listLocalEntries(room) {
   return entries
     .filter((entry) => entry.room === room)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, 500)
+    .slice(0, ENTRY_FETCH_LIMIT)
     .map((entry) => ({ word: entry.word }));
 }
 
@@ -115,7 +116,7 @@ async function listEntries(room) {
     select: "word",
     room: `eq.${room}`,
     order: "created_at.desc",
-    limit: "500",
+    limit: String(ENTRY_FETCH_LIMIT),
   });
 
   return supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
