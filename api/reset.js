@@ -9,7 +9,7 @@ module.exports = async (req, res) => {
     }
 
     const room = getRoom(req);
-    const expectedPassword = process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "local-reset" : "");
+    const expectedPassword = process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
     const submittedPassword = String(req.body?.password || "");
 
     if (!expectedPassword) {

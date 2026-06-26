@@ -26,7 +26,7 @@ function normalizeOptionalTitle(value) {
 }
 
 function getExpectedPassword() {
-  return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "local-reset" : "");
+  return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
 }
 
 module.exports = async (req, res) => {
