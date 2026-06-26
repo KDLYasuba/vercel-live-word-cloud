@@ -47,10 +47,12 @@ async function writeLocalEntries(entries) {
   await fs.writeFile(LOCAL_STORE_PATH, `${JSON.stringify(entries, null, 2)}\n`);
 }
 
-async function listLocalEntries(room) {
+async function listLocalEntries(room, options = {}) {
   const entries = await readLocalEntries();
+  const sinceTime = options.since ? new Date(options.since).getTime() : null;
   return entries
     .filter((entry) => entry.room === room)
+    .filter((entry) => !sinceTime || new Date(entry.created_at).getTime() > sinceTime)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, ENTRY_FETCH_LIMIT)
     .map((entry) => ({ word: entry.word }));
@@ -66,12 +68,6 @@ async function insertLocalEntry(room, word) {
   });
   await writeLocalEntries(entries);
   return [{ room, word }];
-}
-
-async function clearLocalRoom(room) {
-  const entries = await readLocalEntries();
-  await writeLocalEntries(entries.filter((entry) => entry.room !== room));
-  return null;
 }
 
 async function supabaseFetch(path, options = {}) {
@@ -107,9 +103,9 @@ async function supabaseFetch(path, options = {}) {
   return response.json();
 }
 
-async function listEntries(room) {
+async function listEntries(room, options = {}) {
   if (!hasSupabaseEnv()) {
-    return listLocalEntries(room);
+    return listLocalEntries(room, options);
   }
 
   const filter = new URLSearchParams({
@@ -118,6 +114,9 @@ async function listEntries(room) {
     order: "created_at.desc",
     limit: String(ENTRY_FETCH_LIMIT),
   });
+  if (options.since) {
+    filter.set("created_at", `gt.${options.since}`);
+  }
 
   return supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
     method: "GET",
@@ -135,26 +134,9 @@ async function insertEntry(room, word) {
   });
 }
 
-async function clearRoom(room) {
-  if (!hasSupabaseEnv()) {
-    return clearLocalRoom(room);
-  }
-
-  const filter = new URLSearchParams({
-    room: `eq.${room}`,
-  });
-
-  return supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
-    method: "DELETE",
-    headers: {
-      Prefer: "return=minimal",
-    },
-  });
-}
-
 function parseActiveState(value) {
   if (!value) {
-    return { room: "main", title: "main", mode: "raw", accepting: true };
+    return { room: "main", title: "main", mode: "raw", accepting: true, resetAt: null };
   }
 
   try {
@@ -165,9 +147,10 @@ function parseActiveState(value) {
       title: parsed.title || room,
       mode: normalizeMode(parsed.mode),
       accepting: parsed.accepting !== false,
+      resetAt: parsed.resetAt || null,
     };
   } catch (error) {
-    return { room: value, title: value, mode: "raw", accepting: true };
+    return { room: value, title: value, mode: "raw", accepting: true, resetAt: null };
   }
 }
 
@@ -188,8 +171,8 @@ async function setActiveState(state) {
     title: state.title || room,
     mode: normalizeMode(state.mode),
     accepting: state.accepting !== false,
+    resetAt: state.resetAt || null,
   };
-  await clearRoom(STATE_ROOM);
   await insertEntry(STATE_ROOM, JSON.stringify(nextState));
   return nextState;
 }
@@ -208,6 +191,7 @@ async function getRoomState(room) {
       title: state.title || normalizedRoom,
       mode: normalizeMode(state.mode),
       accepting: state.accepting !== false,
+      resetAt: state.resetAt || null,
     };
   }
 
@@ -218,6 +202,7 @@ async function getRoomState(room) {
       title: legacy.title || normalizedRoom,
       mode: normalizeMode(legacy.mode),
       accepting: legacy.accepting !== false,
+      resetAt: legacy.resetAt || null,
     };
   }
 
@@ -226,6 +211,7 @@ async function getRoomState(room) {
     title: normalizedRoom,
     mode: "raw",
     accepting: true,
+    resetAt: null,
   };
 }
 
@@ -236,9 +222,9 @@ async function setRoomState(state) {
     title: state.title || room,
     mode: normalizeMode(state.mode),
     accepting: state.accepting !== false,
+    resetAt: state.resetAt || null,
   };
   const stateKey = getRoomStateKey(room);
-  await clearRoom(stateKey);
   await insertEntry(stateKey, JSON.stringify(nextState));
   return nextState;
 }
@@ -274,7 +260,6 @@ function getRoom(req) {
 
 module.exports = {
   aggregateEntries,
-  clearRoom,
   getActiveState,
   getActiveRoom,
   getRoom,

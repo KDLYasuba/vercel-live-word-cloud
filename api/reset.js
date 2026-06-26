@@ -1,4 +1,4 @@
-const { clearRoom, getRoom } = require("./_supabase");
+const { getRoom, getRoomState, setRoomState } = require("./_supabase");
 
 module.exports = async (req, res) => {
   try {
@@ -22,7 +22,14 @@ module.exports = async (req, res) => {
       return;
     }
 
-    await clearRoom(room);
+    const current = await getRoomState(room);
+    await setRoomState({
+      room,
+      title: current.title || room,
+      mode: current.mode,
+      accepting: current.accepting !== false,
+      resetAt: new Date().toISOString(),
+    });
     res.status(200).json({ ok: true, room });
   } catch (error) {
     res.status(error.statusCode || 500).json({

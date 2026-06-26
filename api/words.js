@@ -174,7 +174,8 @@ module.exports = async (req, res) => {
     const mode = normalizeMode(req.query.mode);
 
     if (req.method === "GET") {
-      const entries = await listEntries(room);
+      const state = await getRoomState(room);
+      const entries = await listEntries(room, { since: state.resetAt });
       res.status(200).json({
         room,
         mode,
@@ -201,7 +202,7 @@ module.exports = async (req, res) => {
       }
 
       await insertEntry(room, normalized);
-      const entries = await listEntries(room);
+      const entries = await listEntries(room, { since: state.resetAt });
       res.status(200).json({
         ok: true,
         room,

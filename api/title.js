@@ -1,5 +1,4 @@
 const {
-  clearRoom,
   getActiveState,
   getRoom,
   getRoomState,
@@ -47,6 +46,7 @@ module.exports = async (req, res) => {
       const accepting =
         typeof req.body?.accepting === "boolean" ? req.body.accepting : current.accepting !== false;
       const shouldReset = req.body?.reset !== false;
+      const resetAt = shouldReset ? new Date().toISOString() : current.resetAt || null;
       const requiresPassword =
         shouldReset || title !== (current.title || current.room) || accepting !== (current.accepting !== false);
 
@@ -65,14 +65,10 @@ module.exports = async (req, res) => {
         }
       }
 
-      if (shouldReset) {
-        await clearRoom(room);
-      }
-
       const state =
         req.body?.scoped !== false || req.query?.room
-          ? await setRoomState({ room, title, mode, accepting })
-          : await setActiveState({ room, title, mode, accepting });
+          ? await setRoomState({ room, title, mode, accepting, resetAt })
+          : await setActiveState({ room, title, mode, accepting, resetAt });
       res.status(200).json({ ok: true, ...state });
       return;
     }
