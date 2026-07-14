@@ -139,6 +139,25 @@ function isTwoCharacterHiragana(segment) {
   return /^[ぁ-ゖ]{2}$/.test(segment);
 }
 
+function normalizePhraseCandidate(text) {
+  const phrase = String(text || "")
+    .trim()
+    .replace(/^[\s、。,.!?！？「」『』（）()[\]{}・:;]+|[\s、。,.!?！？「」『』（）()[\]{}・:;]+$/g, "")
+    .replace(/\s+/g, " ");
+
+  if (
+    phrase.length < 3 ||
+    phrase.length > 30 ||
+    /^\d+$/.test(phrase) ||
+    STOP_WORDS.has(phrase) ||
+    /^[ぁ-ゖ]+$/.test(phrase)
+  ) {
+    return "";
+  }
+
+  return /^[a-zA-Z0-9]+$/.test(phrase) ? phrase.toLowerCase() : phrase;
+}
+
 function tokenizeText(text) {
   const source = String(text || "").trim();
   if (!source) {
@@ -176,11 +195,23 @@ function tokenizeText(text) {
 
 function aggregateTokens(entries) {
   const counts = new Map();
+  const phraseCounts = new Map();
 
   for (const entry of entries) {
+    const phrase = normalizePhraseCandidate(entry.word);
+    if (phrase) {
+      phraseCounts.set(phrase, (phraseCounts.get(phrase) || 0) + 1);
+    }
+
     for (const token of tokenizeText(entry.word)) {
       const current = counts.get(token) || 0;
       counts.set(token, current + 1);
+    }
+  }
+
+  for (const [phrase, count] of phraseCounts.entries()) {
+    if (count >= 2 && !counts.has(phrase)) {
+      counts.set(phrase, count);
     }
   }
 
