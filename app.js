@@ -22,6 +22,7 @@ const participantUrlEl = document.getElementById("participant-url");
 
 const isScreenMode = window.location.pathname === "/screen";
 const params = new URLSearchParams(window.location.search);
+const adminToken = params.get("token") || "";
 const activeRoomStorageKey = "vercel-live-word-cloud-active-room";
 const wordUpdateStorageKey = "vercel-live-word-cloud-word-update";
 const roomChannel = "BroadcastChannel" in window ? new BroadcastChannel("vercel-live-word-cloud-room") : null;
@@ -240,6 +241,9 @@ function applyIncomingState(nextRoom, nextMode, nextTitle, nextAccepting = true)
   displayMode = normalizedMode;
   isAccepting = normalizedAccepting;
   params.set("room", room);
+  if (adminToken) {
+    params.set("token", adminToken);
+  }
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
   fetchWords()
@@ -269,7 +273,11 @@ function handleFetchedWords(words, options = {}) {
 }
 
 async function fetchActiveRoom() {
-  const titleUrl = usesRoomScopedState ? `/api/title?room=${encodeURIComponent(room)}` : "/api/title";
+  const titleUrl = adminToken
+    ? `/api/title?token=${encodeURIComponent(adminToken)}`
+    : usesRoomScopedState
+      ? `/api/title?room=${encodeURIComponent(room)}`
+      : "/api/title";
   const response = await fetch(titleUrl, {
     cache: "no-store",
   });
@@ -558,7 +566,15 @@ async function applyTitle(nextTitle, password) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room, title: normalizedTitle, mode: displayMode, accepting: isAccepting, password, scoped: true }),
+    body: JSON.stringify({
+      room,
+      title: normalizedTitle,
+      mode: displayMode,
+      accepting: isAccepting,
+      password,
+      token: adminToken,
+      scoped: true,
+    }),
   });
   const payload = await response.json();
 
@@ -580,7 +596,15 @@ async function applyDisplayMode(nextMode) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ room, title: displayTitle, mode: normalizedMode, accepting: isAccepting, reset: false, scoped: true }),
+    body: JSON.stringify({
+      room,
+      title: displayTitle,
+      mode: normalizedMode,
+      accepting: isAccepting,
+      reset: false,
+      token: adminToken,
+      scoped: true,
+    }),
   });
   const payload = await response.json();
 
@@ -599,7 +623,7 @@ async function applyDisplayMode(nextMode) {
 }
 
 async function applyAcceptance(nextAccepting) {
-  const password = requestAdminPassword(nextAccepting ? "受付再開" : "受付停止");
+  const password = adminToken ? "" : requestAdminPassword(nextAccepting ? "受付再開" : "受付停止");
   const response = await fetch("/api/title", {
     method: "POST",
     headers: {
@@ -611,6 +635,7 @@ async function applyAcceptance(nextAccepting) {
       mode: displayMode,
       accepting: nextAccepting,
       password,
+      token: adminToken,
       reset: false,
       scoped: true,
     }),
@@ -734,9 +759,12 @@ function startTitleRefresh() {
 
 async function replaceRoom(nextRoom) {
   const nextTitle = normalizeRoom(nextRoom);
-  const password = requestAdminPassword("タイトル適用");
+  const password = adminToken ? "" : requestAdminPassword("タイトル適用");
   room = await applyTitle(nextTitle, password);
   params.set("room", room);
+  if (adminToken) {
+    params.set("token", adminToken);
+  }
   window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   updateRoomUi();
   notifyStateChange(room, displayMode, displayTitle, isAccepting);

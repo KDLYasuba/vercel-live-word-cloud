@@ -1,7 +1,10 @@
 const {
   getActiveState,
+  getEventByToken,
+  getEventForRoom,
   getRoom,
   getRoomState,
+  isEventExpired,
   normalizeMode,
   setActiveState,
   setRoomState,
@@ -29,16 +32,49 @@ function getExpectedPassword() {
   return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
 }
 
+async function getTokenEvent(req) {
+  const token = String(req.query?.token || req.body?.token || "").trim();
+  if (!token) {
+    return null;
+  }
+
+  const event = await getEventByToken(token);
+  if (!event) {
+    const error = new Error("Invalid admin URL.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return event;
+}
+
 module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
-      const state = req.query?.room ? await getRoomState(getRoom(req)) : await getActiveState();
-      res.status(200).json(state);
+      const tokenEvent = await getTokenEvent(req);
+      const room = tokenEvent ? tokenEvent.room : req.query?.room ? getRoom(req) : "";
+      const roomEvent = !tokenEvent && room ? await getEventForRoom(room) : null;
+      const event = tokenEvent || roomEvent;
+      const state = room ? await getRoomState(room) : await getActiveState();
+      const expired = event ? isEventExpired(event) : false;
+      res.status(200).json({
+        ...state,
+        room: event?.room || state.room,
+        expiresAt: event?.expiresAt || null,
+        expired,
+        accepting: expired ? false : state.accepting,
+      });
       return;
     }
 
     if (req.method === "POST") {
-      const requestedRoom = normalizeOptionalTitle(req.body?.room || req.query?.room || "");
+      const event = await getTokenEvent(req);
+      if (event && isEventExpired(event)) {
+        res.status(403).json({ error: "This admin URL has expired." });
+        return;
+      }
+
+      const requestedRoom = event?.room || normalizeOptionalTitle(req.body?.room || req.query?.room || "");
       const current = requestedRoom ? await getRoomState(requestedRoom) : await getActiveState();
       const room = requestedRoom || normalizeTitle(current.room);
       const title = normalizeTitle(req.body?.title || req.body?.roomTitle || req.body?.room || current.title || room);
@@ -50,7 +86,7 @@ module.exports = async (req, res) => {
       const requiresPassword =
         shouldReset || title !== (current.title || current.room) || accepting !== (current.accepting !== false);
 
-      if (requiresPassword) {
+      if (requiresPassword && !event) {
         const expectedPassword = getExpectedPassword();
         const submittedPassword = String(req.body?.password || "");
 

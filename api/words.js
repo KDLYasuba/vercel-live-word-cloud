@@ -1,7 +1,9 @@
 const {
+  getEventForRoom,
   getRoom,
   getRoomState,
   insertEntry,
+  isEventExpired,
   listEntries,
   normalizeMode,
 } = require("./_supabase");
@@ -206,6 +208,12 @@ module.exports = async (req, res) => {
 
     if (req.method === "POST") {
       const state = await getRoomState(room);
+      const event = await getEventForRoom(room);
+      if (event && isEventExpired(event)) {
+        res.status(403).json({ error: "This room has expired." });
+        return;
+      }
+
       if (state.accepting === false) {
         res.status(403).json({ error: "This room is not accepting submissions." });
         return;

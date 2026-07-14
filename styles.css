@@ -215,6 +215,33 @@ body {
   color: rgba(20, 49, 78, 0.72);
 }
 
+.issuer-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.issuer-result h3 {
+  margin: 0 0 4px;
+}
+
+.issuer-result label {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.issuer-result input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(20, 49, 78, 0.16);
+  border-radius: 12px;
+  background: #fffefa;
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
 .cloud {
   position: relative;
   min-height: 560px;

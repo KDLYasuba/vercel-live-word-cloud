@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Issuer | Live Word Cloud</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell admin-shell">
+      <main class="admin-layout">
+        <section class="panel control-panel">
+          <div class="panel-header">
+            <h2>管理URL発行</h2>
+            <p>イベントごとの司会者URLを発行します。期限を過ぎると投稿と司会者操作は停止します。</p>
+          </div>
+
+          <form id="issuer-form" class="stack-form">
+            <label for="issuer-title">初期タイトル</label>
+            <input id="issuer-title" name="title" type="text" maxlength="64" required />
+
+            <label for="issuer-expires-at">終了期限</label>
+            <input id="issuer-expires-at" name="expiresAt" type="datetime-local" required />
+
+            <label for="issuer-password">発行パスワード</label>
+            <input id="issuer-password" name="password" type="password" autocomplete="current-password" required />
+
+            <button type="submit">管理URLを発行</button>
+          </form>
+
+          <div id="issuer-result" class="issuer-result is-hidden" aria-live="polite">
+            <h3>発行しました</h3>
+            <label for="issuer-admin-url">司会者URL</label>
+            <input id="issuer-admin-url" type="text" readonly />
+            <label for="issuer-participant-url">参加者URL</label>
+            <input id="issuer-participant-url" type="text" readonly />
+            <label for="issuer-screen-url">表示専用URL</label>
+            <input id="issuer-screen-url" type="text" readonly />
+          </div>
+
+          <p id="status" class="status">準備完了です。</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="/issuer.js"></script>
+  </body>
+</html>

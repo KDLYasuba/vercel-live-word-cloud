@@ -8,6 +8,8 @@ const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "word_entries";
 const LOCAL_STORE_PATH = path.join(process.cwd(), ".local-word-entries.json");
 const STATE_ROOM = "__live_word_cloud_state__";
 const ROOM_STATE_PREFIX = "__live_word_cloud_room_state__:";
+const EVENT_PREFIX = "__live_word_cloud_event__:";
+const EVENT_INDEX_ROOM = "__live_word_cloud_event_index__";
 const ENTRY_FETCH_LIMIT = 2000;
 
 function normalizeMode(value) {
@@ -134,6 +136,14 @@ async function insertEntry(room, word) {
   });
 }
 
+function safeParseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return null;
+  }
+}
+
 function parseActiveState(value) {
   if (!value) {
     return { room: "main", title: "main", mode: "raw", accepting: true, resetAt: null };
@@ -152,6 +162,69 @@ function parseActiveState(value) {
   } catch (error) {
     return { room: value, title: value, mode: "raw", accepting: true, resetAt: null };
   }
+}
+
+function getEventKey(token) {
+  return `${EVENT_PREFIX}${token}`;
+}
+
+function parseEvent(value) {
+  const parsed = safeParseJson(value);
+  if (!parsed || !parsed.token || !parsed.room) {
+    return null;
+  }
+
+  return {
+    token: String(parsed.token),
+    room: String(parsed.room),
+    title: String(parsed.title || parsed.room),
+    expiresAt: parsed.expiresAt || null,
+    createdAt: parsed.createdAt || null,
+  };
+}
+
+function isEventExpired(event, now = new Date()) {
+  if (!event?.expiresAt) {
+    return false;
+  }
+
+  const expiresAt = new Date(event.expiresAt).getTime();
+  return Number.isFinite(expiresAt) && expiresAt <= now.getTime();
+}
+
+async function getEventByToken(token) {
+  const normalizedToken = String(token || "").trim();
+  if (!normalizedToken) {
+    return null;
+  }
+
+  const entries = await listEntries(getEventKey(normalizedToken));
+  return parseEvent(entries[0]?.word);
+}
+
+async function setEvent(event) {
+  const nextEvent = {
+    token: event.token,
+    room: event.room,
+    title: event.title || event.room,
+    expiresAt: event.expiresAt || null,
+    createdAt: event.createdAt || new Date().toISOString(),
+  };
+  await insertEntry(getEventKey(nextEvent.token), JSON.stringify(nextEvent));
+  await insertEntry(EVENT_INDEX_ROOM, JSON.stringify(nextEvent));
+  return nextEvent;
+}
+
+async function getEventForRoom(room) {
+  const entries = await listEntries(EVENT_INDEX_ROOM);
+  for (const entry of entries) {
+    const event = parseEvent(entry.word);
+    if (event?.room === room) {
+      return event;
+    }
+  }
+
+  return null;
 }
 
 async function getActiveState() {
@@ -262,12 +335,16 @@ module.exports = {
   aggregateEntries,
   getActiveState,
   getActiveRoom,
+  getEventByToken,
+  getEventForRoom,
   getRoom,
   getRoomState,
   insertEntry,
+  isEventExpired,
   listEntries,
   normalizeMode,
   setActiveState,
   setActiveRoom,
+  setEvent,
   setRoomState,
 };
