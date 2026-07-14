@@ -70,6 +70,13 @@ body {
   margin: 0 auto;
 }
 
+.issuer-layout {
+  grid-template-columns: minmax(360px, 460px) minmax(420px, 1fr);
+  gap: 20px;
+  max-width: 1040px;
+  align-items: start;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -249,6 +256,95 @@ body {
   background: #fffefa;
   color: var(--ink);
   font-size: 0.82rem;
+}
+
+.issuer-list-panel {
+  min-height: 360px;
+}
+
+.issuer-refresh-button {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.issuer-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.issuer-list-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(20, 49, 78, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 254, 250, 0.72);
+}
+
+.issuer-list-title-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.issuer-list-title-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.issuer-status-badge {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.issuer-status-badge.is-active {
+  background: rgba(18, 128, 83, 0.12);
+  color: #08724a;
+}
+
+.issuer-status-badge.is-expired {
+  background: rgba(121, 83, 57, 0.12);
+  color: #795339;
+}
+
+.issuer-list-meta {
+  margin: 0;
+  color: rgba(20, 49, 78, 0.66);
+  font-size: 0.9rem;
+}
+
+.issuer-list-item label {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.issuer-list-item input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(20, 49, 78, 0.14);
+  border-radius: 12px;
+  background: #fffefa;
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.issuer-list-links {
+  display: flex;
+  gap: 8px;
+}
+
+.issuer-list-links .ghost-button {
+  flex: 1;
+  padding: 10px 12px;
+  text-align: center;
 }
 
 .cloud {
@@ -461,6 +557,10 @@ body {
 
 @media (max-width: 860px) {
   .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .issuer-layout {
     grid-template-columns: 1fr;
   }
 

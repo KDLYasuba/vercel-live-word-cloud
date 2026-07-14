@@ -233,6 +233,31 @@ async function setEvent(event) {
   return nextEvent;
 }
 
+async function listEvents(options = {}) {
+  const limit = Number(options.limit || 100);
+  if (!hasSupabaseEnv()) {
+    const entries = await readLocalEntries();
+    return entries
+      .filter((entry) => String(entry.room || "").startsWith(EVENT_PREFIX))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, limit)
+      .map((entry) => parseEvent(entry.word, { requireToken: true }))
+      .filter(Boolean);
+  }
+
+  const filter = new URLSearchParams({
+    select: "word",
+    room: `like.${EVENT_PREFIX}*`,
+    order: "created_at.desc",
+    limit: String(limit),
+  });
+  const entries = await supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
+    method: "GET",
+  });
+
+  return entries.map((entry) => parseEvent(entry.word, { requireToken: true })).filter(Boolean);
+}
+
 async function getEventForRoom(room) {
   const entries = await listEntries(EVENT_INDEX_ROOM);
   for (const entry of entries) {
@@ -355,6 +380,7 @@ module.exports = {
   getActiveRoom,
   getEventByToken,
   getEventForRoom,
+  listEvents,
   getRoom,
   getRoomState,
   insertEntry,

@@ -2,7 +2,9 @@ const crypto = require("crypto");
 
 const {
   getEventByToken,
+  getRoomState,
   isEventExpired,
+  listEvents,
   normalizeMode,
   setEvent,
   setRoomState,
@@ -82,6 +84,22 @@ async function createToken() {
   throw new Error("Could not create a unique token.");
 }
 
+async function buildEventList(req) {
+  const events = await listEvents({ limit: 100 });
+  const result = [];
+  for (const event of events) {
+    const state = await getRoomState(event.room);
+    result.push({
+      ...event,
+      title: state.title || event.title,
+      expired: isEventExpired(event),
+      ...buildUrls(req, event),
+    });
+  }
+
+  return result;
+}
+
 module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
@@ -107,6 +125,12 @@ module.exports = async (req, res) => {
       }
 
       if (!assertIssuerPassword(req, res)) {
+        return;
+      }
+
+      if (req.body?.action === "list") {
+        const events = await buildEventList(req);
+        res.status(200).json({ events });
         return;
       }
 

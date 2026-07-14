@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="page-shell admin-shell">
-      <main class="admin-layout">
+      <main class="admin-layout issuer-layout">
         <section class="panel control-panel">
           <div class="panel-header">
             <h2>管理URL発行</h2>
@@ -39,6 +39,18 @@
           </div>
 
           <p id="status" class="status">準備完了です。</p>
+        </section>
+
+        <section class="panel control-panel issuer-list-panel">
+          <div class="panel-header">
+            <h2>発行済みURL</h2>
+            <p>発行済みの司会者URLと期限を確認できます。</p>
+          </div>
+
+          <button id="issuer-list-refresh" class="ghost-button issuer-refresh-button" type="button">一覧を更新</button>
+          <div id="issuer-list" class="issuer-list" aria-live="polite">
+            <p class="field-note">発行パスワードを入力して「一覧を更新」を押してください。</p>
+          </div>
         </section>
       </main>
     </div>
