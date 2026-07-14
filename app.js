@@ -15,6 +15,7 @@ const participantLink = document.getElementById("participant-link");
 const wordModeButton = document.getElementById("word-mode-button");
 const rawModeButton = document.getElementById("raw-mode-button");
 const acceptanceToggleButton = document.getElementById("acceptance-toggle-button");
+const csvExportButton = document.getElementById("csv-export-button");
 const participantQr = document.getElementById("participant-qr");
 const participantQrCard = document.querySelector(".participant-qr-card");
 const participantQrBackdrop = document.getElementById("participant-qr-backdrop");
@@ -670,6 +671,58 @@ function setStatus(message) {
   }
 }
 
+function getCsvFilenameFromDisposition(disposition) {
+  const fallback = `word-cloud-${new Date().toISOString().slice(0, 10)}.csv`;
+  const filenameMatch = String(disposition || "").match(/filename="([^"]+)"/i);
+  if (!filenameMatch) {
+    return fallback;
+  }
+
+  try {
+    return decodeURIComponent(filenameMatch[1]);
+  } catch (error) {
+    return filenameMatch[1] || fallback;
+  }
+}
+
+async function exportCsv() {
+  const password = adminToken ? "" : requestAdminPassword("CSVデータ出力");
+  const response = await fetch(`/api/export?room=${encodeURIComponent(room)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      room,
+      token: adminToken,
+      password,
+    }),
+  });
+
+  if (!response.ok) {
+    let message = "CSV export failed";
+    try {
+      const payload = await response.json();
+      message = payload.detail || payload.error || message;
+    } catch (error) {
+      message = await response.text();
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const filename = getCsvFilenameFromDisposition(response.headers.get("Content-Disposition"));
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+  setStatus("CSVデータを出力しました。");
+}
+
 function startAutoRefresh() {
   if (!isScreenMode || document.hidden || refreshTimer) {
     return;
@@ -831,6 +884,16 @@ if (acceptanceToggleButton) {
   acceptanceToggleButton.addEventListener("click", async () => {
     try {
       await applyAcceptance(!isAccepting);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
+if (csvExportButton) {
+  csvExportButton.addEventListener("click", async () => {
+    try {
+      await exportCsv();
     } catch (error) {
       setStatus(error.message);
     }

@@ -11,6 +11,7 @@ const ROOM_STATE_PREFIX = "__live_word_cloud_room_state__:";
 const EVENT_PREFIX = "__live_word_cloud_event__:";
 const EVENT_INDEX_ROOM = "__live_word_cloud_event_index__";
 const ENTRY_FETCH_LIMIT = 2000;
+const EXPORT_FETCH_LIMIT = 10000;
 
 function isInternalRoom(room) {
   return String(room || "").startsWith("__live_word_cloud_");
@@ -56,12 +57,17 @@ async function writeLocalEntries(entries) {
 async function listLocalEntries(room, options = {}) {
   const entries = await readLocalEntries();
   const sinceTime = options.since ? new Date(options.since).getTime() : null;
+  const limit = Number(options.limit || ENTRY_FETCH_LIMIT);
+  const includeCreatedAt = options.includeCreatedAt === true;
   return entries
     .filter((entry) => entry.room === room)
     .filter((entry) => !sinceTime || new Date(entry.created_at).getTime() > sinceTime)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, ENTRY_FETCH_LIMIT)
-    .map((entry) => ({ word: entry.word }));
+    .slice(0, limit)
+    .map((entry) => ({
+      word: entry.word,
+      ...(includeCreatedAt ? { created_at: entry.created_at } : {}),
+    }));
 }
 
 async function insertLocalEntry(room, word) {
@@ -115,10 +121,10 @@ async function listEntries(room, options = {}) {
   }
 
   const filter = new URLSearchParams({
-    select: "word",
+    select: options.includeCreatedAt === true ? "word,created_at" : "word",
     room: `eq.${room}`,
     order: "created_at.desc",
-    limit: String(ENTRY_FETCH_LIMIT),
+    limit: String(options.limit || ENTRY_FETCH_LIMIT),
   });
   if (options.since) {
     filter.set("created_at", `gt.${options.since}`);
@@ -355,6 +361,7 @@ module.exports = {
   isInternalRoom,
   isEventExpired,
   listEntries,
+  EXPORT_FETCH_LIMIT,
   normalizeMode,
   setActiveState,
   setActiveRoom,
