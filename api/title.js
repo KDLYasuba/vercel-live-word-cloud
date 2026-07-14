@@ -30,7 +30,7 @@ function normalizeOptionalTitle(value) {
 }
 
 function getExpectedPassword() {
-  return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
+  return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "abcd" : "");
 }
 
 async function getTokenEvent(req) {

@@ -33,7 +33,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const expectedPassword = process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
+    const expectedPassword = process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "abcd" : "");
     const submittedPassword = String(req.body?.password || "");
 
     if (!event && !expectedPassword) {

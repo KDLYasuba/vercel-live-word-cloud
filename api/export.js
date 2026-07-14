@@ -12,7 +12,7 @@ const {
 const CSV_EXPORT_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 function getExpectedPassword() {
-  return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
+  return process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "abcd" : "");
 }
 
 function normalizeTitle(value) {

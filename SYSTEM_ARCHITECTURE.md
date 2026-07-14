@@ -134,7 +134,7 @@ sequenceDiagram
 | `SUPABASE_SECRET_KEY` | `SUPABASE_SERVICE_ROLE_KEY` の代替 |
 | `SUPABASE_TABLE` | 保存テーブル名。未設定時は `word_entries` |
 | `RESET_PASSWORD` | タイトル適用・リセット用の管理者パスワード |
-| `ISSUER_PASSWORD` | 管理URL発行用パスワード。未設定時は `RESET_PASSWORD` |
+| `ISSUER_PASSWORD` | 管理URL発行用パスワード。`RESET_PASSWORD` とは別管理 |
 | `RATE_LIMIT_PER_IP` | 投稿APIのIP・room単位上限。未設定時は `120` |
 | `RATE_LIMIT_PER_ROOM` | 投稿APIのroom単位上限。未設定時は `2000` |
 

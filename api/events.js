@@ -41,7 +41,7 @@ function checkIssuerRateLimit(req) {
 }
 
 function getIssuerPassword() {
-  return process.env.ISSUER_PASSWORD || process.env.RESET_PASSWORD || (!process.env.SUPABASE_URL ? "XXX" : "");
+  return process.env.ISSUER_PASSWORD || (!process.env.SUPABASE_URL ? "ABCD" : "");
 }
 
 function assertIssuerPassword(req, res) {
