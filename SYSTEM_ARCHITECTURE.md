@@ -4,10 +4,12 @@
 
 ```mermaid
 flowchart LR
-  MC["司会者<br/>/admin"] -->|タイトル適用<br/>管理者パスワード| TitleAPI["/api/title"]
+  Issuer["発行者<br/>/issuer"] -->|期限付き管理URL発行| EventsAPI["/api/events"]
+  MC["司会者<br/>/admin or /admin?token=..."] -->|タイトル適用| TitleAPI["/api/title"]
   P["参加者<br/>/"] -->|ワード投稿| WordsAPI["/api/words"]
   S["表示専用画面<br/>/screen"] -->|投稿一覧を定期取得| WordsAPI
 
+  EventsAPI --> Store
   P -->|現在タイトルを定期取得| TitleAPI
   S -->|現在タイトルを定期取得| TitleAPI
 
@@ -39,11 +41,13 @@ flowchart TB
 
 | API | Method | 役割 |
 | --- | --- | --- |
+| `/api/events` | `POST` | 発行パスワードを検証し、期限付き司会者URLを発行 |
+| `/api/events?token=...` | `GET` | 発行済みイベント情報を取得 |
 | `/api/title` | `GET` | 現在のタイトルを取得 |
-| `/api/title` | `POST` | 管理者パスワードを検証し、タイトルを適用。同時にそのタイトルの投稿をリセット |
+| `/api/title` | `POST` | 管理者パスワードまたは発行済みtokenを検証し、タイトルを適用。同時に表示対象をリセット |
 | `/api/words?room=...` | `GET` | 指定タイトルの投稿を集計して取得 |
 | `/api/words?room=...` | `POST` | 指定タイトルへワードを投稿 |
-| `/api/reset?room=...` | `POST` | 指定タイトルの投稿をリセット |
+| `/api/reset?room=...` | `POST` | 指定タイトルの表示対象をsoft reset |
 
 ## データ保存
 
@@ -66,11 +70,13 @@ erDiagram
 | `今日の学び` | `発見` |
 | `今日の学び` | `安心` |
 
-現在タイトルは、追加テーブルを作らず、同じ `word_entries` の特殊roomに保存します。
+現在タイトル・イベント発行情報は、追加テーブルを作らず、同じ `word_entries` の特殊roomに保存します。公開APIでは `__live_word_cloud_` で始まる内部roomを拒否します。
 
 | room | word |
 | --- | --- |
-| `__live_word_cloud_state__` | `今日の学び` |
+| `__live_word_cloud_room_state__:event_xxx` | `{"room":"event_xxx","title":"今日の学び","resetAt":null}` |
+| `__live_word_cloud_event__:token` | `{"token":"...","room":"event_xxx","expiresAt":"..."}` |
+| `__live_word_cloud_event_index__` | `{"room":"event_xxx","expiresAt":"..."}` |
 
 ローカルでSupabase環境変数がない場合は、同じ形式のデータを `.local-word-entries.json` に保存します。
 
@@ -88,7 +94,7 @@ sequenceDiagram
   MC->>MC: 管理者パスワード入力
   MC->>API: POST room, password
   API->>API: RESET_PASSWORDを検証
-  API->>DB: 新タイトルの投稿を削除
+  API->>DB: resetAtを現在時刻に更新
   API->>DB: 現在タイトルを保存
   API-->>MC: ok, room
   MC->>MC: 画面内状態を更新
@@ -111,10 +117,10 @@ sequenceDiagram
 
   PT->>API: POST word, room=current title
   API->>DB: 投稿を保存
-  API->>DB: 最新500件を取得
+  API->>DB: 最新2000件を取得
   API-->>PT: 集計済みwords
   SC->>API: GET words every 6 sec
-  API->>DB: 最新500件を取得
+  API->>DB: 最新2000件を取得
   API-->>SC: 集計済みwords
   SC->>SC: ワードクラウドを再描画
 ```
@@ -128,6 +134,9 @@ sequenceDiagram
 | `SUPABASE_SECRET_KEY` | `SUPABASE_SERVICE_ROLE_KEY` の代替 |
 | `SUPABASE_TABLE` | 保存テーブル名。未設定時は `word_entries` |
 | `RESET_PASSWORD` | タイトル適用・リセット用の管理者パスワード |
+| `ISSUER_PASSWORD` | 管理URL発行用パスワード。未設定時は `RESET_PASSWORD` |
+| `RATE_LIMIT_PER_IP` | 投稿APIのIP・room単位上限。未設定時は `120` |
+| `RATE_LIMIT_PER_ROOM` | 投稿APIのroom単位上限。未設定時は `2000` |
 
 ## デプロイ構成
 
@@ -135,7 +144,7 @@ sequenceDiagram
 flowchart LR
   Local["Local Repository"] -->|git push| GitHub["GitHub<br/>KDLYasuba/vercel-live-word-cloud"]
   GitHub -->|Git連携デプロイ| Vercel["Vercel<br/>vercel-live-word-cloud"]
-  Vercel -->|Serverless Functions| APIs["/api/title<br/>/api/words<br/>/api/reset"]
+  Vercel -->|Serverless Functions| APIs["/api/events<br/>/api/title<br/>/api/words<br/>/api/reset"]
   APIs --> Supabase["Supabase"]
 ```
 
@@ -151,12 +160,12 @@ npm run local
 | 画面 | URL |
 | --- | --- |
 | 司会者設定 | `http://localhost:4000/admin` |
+| 管理URL発行 | `http://localhost:4000/issuer` |
 | 参加者入力 | `http://localhost:4000/` |
 | 表示専用 | `http://localhost:4000/screen` |
 
 ローカルでSupabase環境変数が未設定の場合、管理者パスワードは以下です。
 
 ```text
-local-reset
+XXX
 ```
-

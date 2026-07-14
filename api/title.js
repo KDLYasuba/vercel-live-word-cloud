@@ -4,6 +4,7 @@ const {
   getEventForRoom,
   getRoom,
   getRoomState,
+  isInternalRoom,
   isEventExpired,
   normalizeMode,
   setActiveState,
@@ -53,6 +54,11 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       const tokenEvent = await getTokenEvent(req);
       const room = tokenEvent ? tokenEvent.room : req.query?.room ? getRoom(req) : "";
+      if (!tokenEvent && isInternalRoom(room)) {
+        res.status(403).json({ error: "This room is not public." });
+        return;
+      }
+
       const roomEvent = !tokenEvent && room ? await getEventForRoom(room) : null;
       const event = tokenEvent || roomEvent;
       const state = room ? await getRoomState(room) : await getActiveState();
@@ -75,6 +81,11 @@ module.exports = async (req, res) => {
       }
 
       const requestedRoom = event?.room || normalizeOptionalTitle(req.body?.room || req.query?.room || "");
+      if (!event && isInternalRoom(requestedRoom)) {
+        res.status(403).json({ error: "This room cannot be managed directly." });
+        return;
+      }
+
       const current = requestedRoom ? await getRoomState(requestedRoom) : await getActiveState();
       const room = requestedRoom || normalizeTitle(current.room);
       const title = normalizeTitle(req.body?.title || req.body?.roomTitle || req.body?.room || current.title || room);

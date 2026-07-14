@@ -3,10 +3,16 @@ const {
   getRoom,
   getRoomState,
   insertEntry,
+  isInternalRoom,
   isEventExpired,
   listEntries,
   normalizeMode,
 } = require("./_supabase");
+
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60000);
+const RATE_LIMIT_PER_IP = Number(process.env.RATE_LIMIT_PER_IP || 120);
+const RATE_LIMIT_PER_ROOM = Number(process.env.RATE_LIMIT_PER_ROOM || 2000);
+const rateBuckets = new Map();
 
 const STOP_WORDS = new Set([
   "こと",
@@ -190,10 +196,39 @@ function listRawWords(entries) {
   }));
 }
 
+function getClientIp(req) {
+  const forwarded = String(req.headers?.["x-forwarded-for"] || "");
+  return forwarded.split(",")[0].trim() || req.socket?.remoteAddress || "unknown";
+}
+
+function checkRateLimit(key, limit, now = Date.now()) {
+  const current = rateBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  current.count += 1;
+  return current.count <= limit;
+}
+
+function assertPostRateLimit(req, room) {
+  const ip = getClientIp(req);
+  return (
+    checkRateLimit(`ip:${ip}:room:${room}`, RATE_LIMIT_PER_IP) &&
+    checkRateLimit(`room:${room}`, RATE_LIMIT_PER_ROOM)
+  );
+}
+
 module.exports = async (req, res) => {
   try {
     const room = getRoom(req);
     const mode = normalizeMode(req.query.mode);
+
+    if (isInternalRoom(room)) {
+      res.status(403).json({ error: "This room is not public." });
+      return;
+    }
 
     if (req.method === "GET") {
       const state = await getRoomState(room);
@@ -207,6 +242,11 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
+      if (!assertPostRateLimit(req, room)) {
+        res.status(429).json({ error: "Too many submissions. Please wait and try again." });
+        return;
+      }
+
       const state = await getRoomState(room);
       const event = await getEventForRoom(room);
       if (event && isEventExpired(event)) {
@@ -221,11 +261,15 @@ module.exports = async (req, res) => {
 
       const normalized = String(req.body?.word || "")
         .trim()
-        .replace(/\s+/g, " ")
-        .slice(0, 30);
+        .replace(/\s+/g, " ");
 
       if (!normalized) {
         res.status(400).json({ error: "Word is required." });
+        return;
+      }
+
+      if (normalized.length > 30) {
+        res.status(400).json({ error: "Word must be 30 characters or fewer." });
         return;
       }
 

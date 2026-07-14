@@ -8,12 +8,34 @@ const {
   setRoomState,
 } = require("./_supabase");
 
+const ISSUER_RATE_LIMIT_WINDOW_MS = Number(process.env.ISSUER_RATE_LIMIT_WINDOW_MS || 60000);
+const ISSUER_RATE_LIMIT_PER_IP = Number(process.env.ISSUER_RATE_LIMIT_PER_IP || 10);
+const issuerBuckets = new Map();
+
 function normalizeText(value, fallback = "") {
   return String(value || fallback)
     .trim()
     .replace(/[\u0000-\u001f\u007f]/g, "")
     .replace(/\s+/g, " ")
     .slice(0, 64);
+}
+
+function getClientIp(req) {
+  const forwarded = String(req.headers?.["x-forwarded-for"] || "");
+  return forwarded.split(",")[0].trim() || req.socket?.remoteAddress || "unknown";
+}
+
+function checkIssuerRateLimit(req) {
+  const now = Date.now();
+  const key = getClientIp(req);
+  const current = issuerBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    issuerBuckets.set(key, { count: 1, resetAt: now + ISSUER_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  current.count += 1;
+  return current.count <= ISSUER_RATE_LIMIT_PER_IP;
 }
 
 function getIssuerPassword() {
@@ -79,6 +101,11 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
+      if (!checkIssuerRateLimit(req)) {
+        res.status(429).json({ error: "Too many attempts. Please wait and try again." });
+        return;
+      }
+
       if (!assertIssuerPassword(req, res)) {
         return;
       }

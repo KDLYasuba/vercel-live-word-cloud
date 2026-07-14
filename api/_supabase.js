@@ -12,6 +12,10 @@ const EVENT_PREFIX = "__live_word_cloud_event__:";
 const EVENT_INDEX_ROOM = "__live_word_cloud_event_index__";
 const ENTRY_FETCH_LIMIT = 2000;
 
+function isInternalRoom(room) {
+  return String(room || "").startsWith("__live_word_cloud_");
+}
+
 function normalizeMode(value) {
   return value === "tokens" ? "tokens" : "raw";
 }
@@ -168,14 +172,14 @@ function getEventKey(token) {
   return `${EVENT_PREFIX}${token}`;
 }
 
-function parseEvent(value) {
+function parseEvent(value, options = {}) {
   const parsed = safeParseJson(value);
-  if (!parsed || !parsed.token || !parsed.room) {
+  if (!parsed || !parsed.room || (options.requireToken && !parsed.token)) {
     return null;
   }
 
   return {
-    token: String(parsed.token),
+    token: parsed.token ? String(parsed.token) : "",
     room: String(parsed.room),
     title: String(parsed.title || parsed.room),
     expiresAt: parsed.expiresAt || null,
@@ -199,7 +203,7 @@ async function getEventByToken(token) {
   }
 
   const entries = await listEntries(getEventKey(normalizedToken));
-  return parseEvent(entries[0]?.word);
+  return parseEvent(entries[0]?.word, { requireToken: true });
 }
 
 async function setEvent(event) {
@@ -211,7 +215,15 @@ async function setEvent(event) {
     createdAt: event.createdAt || new Date().toISOString(),
   };
   await insertEntry(getEventKey(nextEvent.token), JSON.stringify(nextEvent));
-  await insertEntry(EVENT_INDEX_ROOM, JSON.stringify(nextEvent));
+  await insertEntry(
+    EVENT_INDEX_ROOM,
+    JSON.stringify({
+      room: nextEvent.room,
+      title: nextEvent.title,
+      expiresAt: nextEvent.expiresAt,
+      createdAt: nextEvent.createdAt,
+    }),
+  );
   return nextEvent;
 }
 
@@ -340,6 +352,7 @@ module.exports = {
   getRoom,
   getRoomState,
   insertEntry,
+  isInternalRoom,
   isEventExpired,
   listEntries,
   normalizeMode,

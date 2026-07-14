@@ -5,6 +5,9 @@ create table if not exists public.word_entries (
   created_at timestamptz not null default now()
 );
 
+comment on table public.word_entries is
+  'Stores public word submissions and internal live-word-cloud state rows. Internal rooms start with __live_word_cloud_ and must not be exposed by public APIs.';
+
 create index if not exists word_entries_room_created_at_idx
   on public.word_entries (room, created_at desc);
 

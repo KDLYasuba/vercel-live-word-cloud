@@ -548,7 +548,7 @@ async function resetRoom(targetRoom, password) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, token: adminToken }),
   });
   const payload = await response.json();
 
