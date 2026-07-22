@@ -7,6 +7,7 @@ const issuerScreenUrl = document.getElementById("issuer-screen-url");
 const issuerList = document.getElementById("issuer-list");
 const issuerListRefresh = document.getElementById("issuer-list-refresh");
 const issuerPasswordInput = document.getElementById("issuer-password");
+let issuerListLoadTimer = null;
 
 function setIssuerStatus(message) {
   if (issuerStatus) {
@@ -142,6 +143,21 @@ async function loadIssuerList() {
   setIssuerStatus("発行済みURL一覧を更新しました。");
 }
 
+function scheduleIssuerListLoad() {
+  if (!issuerPasswordInput?.value) {
+    return;
+  }
+
+  window.clearTimeout(issuerListLoadTimer);
+  issuerListLoadTimer = window.setTimeout(async () => {
+    try {
+      await loadIssuerList();
+    } catch (error) {
+      setIssuerStatus(error.message);
+    }
+  }, 300);
+}
+
 async function deleteExpiredEvent(token, title) {
   const password = String(issuerPasswordInput?.value || "");
   if (!password) {
@@ -219,6 +235,12 @@ if (issuerListRefresh) {
       setIssuerStatus(error.message);
     }
   });
+}
+
+if (issuerPasswordInput) {
+  issuerPasswordInput.addEventListener("input", scheduleIssuerListLoad);
+  issuerPasswordInput.addEventListener("change", scheduleIssuerListLoad);
+  window.setTimeout(scheduleIssuerListLoad, 250);
 }
 
 if (issuerList) {
