@@ -42,6 +42,8 @@ let idleCheckTimer = null;
 let titleRefreshTimer = null;
 let lastWordsSignature = "";
 let lastWordsChangedAt = Date.now();
+let wordPositionContext = "";
+let wordPositionCache = new Map();
 
 function normalizeRoom(value) {
   return String(value || "main")
@@ -432,6 +434,34 @@ function buildRankedBasePosition(index, total, width, height, seed = "") {
   };
 }
 
+function getWordPositionKey(item, index) {
+  if (displayMode === "raw") {
+    return `${displayMode}:${item.word}:${item.createdAt || index}`;
+  }
+
+  return `${displayMode}:${item.word}`;
+}
+
+function getWordPositionContext(width, height) {
+  return `${room}:${displayMode}:${Math.round(width / 20)}:${Math.round(height / 20)}`;
+}
+
+function buildWordBox(x, y, width, height) {
+  return {
+    left: x - width / 2,
+    right: x + width / 2,
+    top: y - height / 2,
+    bottom: y + height / 2,
+  };
+}
+
+function clampWordPosition(position, marginX, marginY, width, height) {
+  return {
+    x: Math.min(width - marginX, Math.max(marginX, position.x)),
+    y: Math.min(height - marginY, Math.max(marginY, position.y)),
+  };
+}
+
 function render(words) {
   if (!cloud) {
     return;
@@ -450,6 +480,7 @@ function render(words) {
   }
 
   if (!words.length) {
+    wordPositionCache.clear();
     const empty = document.createElement("p");
     empty.className = "status";
     empty.textContent = "まだワードがありません。";
@@ -459,55 +490,111 @@ function render(words) {
   }
 
   const columns = Math.max(2, Math.ceil(Math.sqrt(words.length)));
-  const rows = Math.max(2, Math.ceil(words.length / columns));
   const width = cloud.clientWidth || (isScreenMode ? 1400 : 800);
   const height = cloud.clientHeight || (isScreenMode ? 800 : 560);
-  const placedBoxes = [];
+  const nextPositionContext = getWordPositionContext(width, height);
+  if (nextPositionContext !== wordPositionContext) {
+    wordPositionCache = new Map();
+    wordPositionContext = nextPositionContext;
+  }
 
-  words.forEach((item, index) => {
+  const renderItems = words.map((item, index) => {
     const label = item.word;
-    const positionSeed = `${displayMode}:${label}:${item.createdAt || ""}:${index}`;
     const sizeInfo = sizeForCount(item.count);
     const fontSize = sizeInfo.size;
-    const basePosition =
-      displayMode === "tokens"
-        ? buildRankedBasePosition(index, words.length, width, height, positionSeed)
-        : buildScatterBasePosition(positionSeed, index, words.length, width, height);
-    const rawX = basePosition.x;
-    const rawY = basePosition.y;
     const chipWidth = estimateChipWidth(label, fontSize);
     const chipHeight = estimateChipHeight(fontSize);
     const marginX = chipWidth / 2 + 34;
     const marginY = chipHeight / 2 + 30;
-    const safeX = Math.min(width - marginX, Math.max(marginX, rawX));
-    const safeY = Math.min(height - marginY, Math.max(marginY, rawY));
-    const candidates = buildCandidatePositions(safeX, safeY, width, height, marginX, marginY, positionSeed);
+    const positionKey = getWordPositionKey(item, index);
 
-    let chosen = { x: safeX, y: safeY };
+    return {
+      item,
+      index,
+      label,
+      positionKey,
+      positionSeed: `${room}:${displayMode}:${positionKey}`,
+      fontSize,
+      chipWidth,
+      chipHeight,
+      marginX,
+      marginY,
+      chosen: null,
+    };
+  });
+
+  const activePositionKeys = new Set(renderItems.map((item) => item.positionKey));
+  for (const key of wordPositionCache.keys()) {
+    if (!activePositionKeys.has(key)) {
+      wordPositionCache.delete(key);
+    }
+  }
+
+  const placedBoxes = [];
+
+  for (const renderItem of renderItems) {
+    const cached = wordPositionCache.get(renderItem.positionKey);
+    if (!cached) {
+      continue;
+    }
+
+    const chosen = clampWordPosition(cached, renderItem.marginX, renderItem.marginY, width, height);
+    renderItem.chosen = chosen;
+    wordPositionCache.set(renderItem.positionKey, chosen);
+    placedBoxes.push(
+      buildWordBox(chosen.x, chosen.y, renderItem.chipWidth, renderItem.chipHeight),
+    );
+  }
+
+  for (const renderItem of renderItems) {
+    if (renderItem.chosen) {
+      continue;
+    }
+
+    const basePosition =
+      displayMode === "tokens"
+        ? buildRankedBasePosition(renderItem.index, words.length, width, height, renderItem.positionSeed)
+        : buildScatterBasePosition(renderItem.positionSeed, renderItem.index, words.length, width, height);
+    const safePosition = clampWordPosition(
+      basePosition,
+      renderItem.marginX,
+      renderItem.marginY,
+      width,
+      height,
+    );
+    const candidates = buildCandidatePositions(
+      safePosition.x,
+      safePosition.y,
+      width,
+      height,
+      renderItem.marginX,
+      renderItem.marginY,
+      renderItem.positionSeed,
+    );
+
+    let chosen = safePosition;
+    let placed = false;
     for (const candidate of candidates) {
-      const box = {
-        left: candidate.x - chipWidth / 2,
-        right: candidate.x + chipWidth / 2,
-        top: candidate.y - chipHeight / 2,
-        bottom: candidate.y + chipHeight / 2,
-      };
+      const box = buildWordBox(candidate.x, candidate.y, renderItem.chipWidth, renderItem.chipHeight);
 
       if (!placedBoxes.some((placed) => intersects(box, placed))) {
         chosen = candidate;
         placedBoxes.push(box);
+        placed = true;
         break;
       }
     }
 
-    if (placedBoxes.length <= index) {
-      placedBoxes.push({
-        left: chosen.x - chipWidth / 2,
-        right: chosen.x + chipWidth / 2,
-        top: chosen.y - chipHeight / 2,
-        bottom: chosen.y + chipHeight / 2,
-      });
+    if (!placed) {
+      placedBoxes.push(buildWordBox(chosen.x, chosen.y, renderItem.chipWidth, renderItem.chipHeight));
     }
 
+    renderItem.chosen = chosen;
+    wordPositionCache.set(renderItem.positionKey, chosen);
+  }
+
+  renderItems.forEach((renderItem) => {
+    const { chosen, fontSize, label, positionSeed } = renderItem;
     const chip = document.createElement("span");
     chip.className = `word-chip ${displayMode === "raw" ? "raw-chip" : "token-chip"}`;
     chip.textContent = label;
