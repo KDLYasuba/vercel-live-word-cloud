@@ -47,9 +47,16 @@
             <p>発行済みの司会者URLと期限を確認できます。</p>
           </div>
 
+          <label for="issuer-list-password">発行パスワード</label>
+          <input
+            id="issuer-list-password"
+            class="issuer-list-password"
+            type="password"
+            autocomplete="current-password"
+          />
           <button id="issuer-list-refresh" class="ghost-button issuer-refresh-button" type="button">一覧を更新</button>
           <div id="issuer-list" class="issuer-list" aria-live="polite">
-            <p class="field-note">発行パスワードを入力して「一覧を更新」を押してください。</p>
+            <p class="field-note">発行パスワードを入力すると一覧を表示します。</p>
           </div>
         </section>
       </main>

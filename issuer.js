@@ -7,11 +7,44 @@ const issuerScreenUrl = document.getElementById("issuer-screen-url");
 const issuerList = document.getElementById("issuer-list");
 const issuerListRefresh = document.getElementById("issuer-list-refresh");
 const issuerPasswordInput = document.getElementById("issuer-password");
+const issuerListPasswordInput = document.getElementById("issuer-list-password");
 let issuerListLoadTimer = null;
+const ISSUER_PASSWORD_STORAGE_KEY = "liveWordCloudIssuerPassword";
 
 function setIssuerStatus(message) {
   if (issuerStatus) {
     issuerStatus.textContent = message;
+  }
+}
+
+function getStoredIssuerPassword() {
+  try {
+    return window.sessionStorage.getItem(ISSUER_PASSWORD_STORAGE_KEY) || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function storeIssuerPassword(password) {
+  try {
+    if (password) {
+      window.sessionStorage.setItem(ISSUER_PASSWORD_STORAGE_KEY, password);
+    }
+  } catch (error) {
+    // Ignore storage failures. The password inputs still work for this page view.
+  }
+}
+
+function getIssuerPasswordValue() {
+  return String(issuerListPasswordInput?.value || issuerPasswordInput?.value || "").trim();
+}
+
+function syncIssuerPasswordInputs(value, sourceInput = null) {
+  const password = String(value || "");
+  for (const input of [issuerPasswordInput, issuerListPasswordInput]) {
+    if (input && input !== sourceInput && input.value !== password) {
+      input.value = password;
+    }
   }
 }
 
@@ -116,7 +149,7 @@ function renderIssuerList(events) {
 }
 
 async function loadIssuerList() {
-  const password = String(issuerPasswordInput?.value || "");
+  const password = getIssuerPasswordValue();
   if (!password) {
     setIssuerStatus("一覧を表示するには発行パスワードを入力してください。");
     return;
@@ -140,11 +173,13 @@ async function loadIssuerList() {
   }
 
   renderIssuerList(payload.events || []);
+  storeIssuerPassword(password);
+  syncIssuerPasswordInputs(password);
   setIssuerStatus("発行済みURL一覧を更新しました。");
 }
 
 function scheduleIssuerListLoad() {
-  if (!issuerPasswordInput?.value) {
+  if (!getIssuerPasswordValue()) {
     return;
   }
 
@@ -159,7 +194,7 @@ function scheduleIssuerListLoad() {
 }
 
 async function deleteExpiredEvent(token, title) {
-  const password = String(issuerPasswordInput?.value || "");
+  const password = getIssuerPasswordValue();
   if (!password) {
     setIssuerStatus("削除するには発行パスワードを入力してください。");
     return;
@@ -238,8 +273,30 @@ if (issuerListRefresh) {
 }
 
 if (issuerPasswordInput) {
-  issuerPasswordInput.addEventListener("input", scheduleIssuerListLoad);
-  issuerPasswordInput.addEventListener("change", scheduleIssuerListLoad);
+  issuerPasswordInput.addEventListener("input", () => {
+    syncIssuerPasswordInputs(issuerPasswordInput.value, issuerPasswordInput);
+    scheduleIssuerListLoad();
+  });
+  issuerPasswordInput.addEventListener("change", () => {
+    syncIssuerPasswordInputs(issuerPasswordInput.value, issuerPasswordInput);
+    scheduleIssuerListLoad();
+  });
+}
+
+if (issuerListPasswordInput) {
+  issuerListPasswordInput.addEventListener("input", () => {
+    syncIssuerPasswordInputs(issuerListPasswordInput.value, issuerListPasswordInput);
+    scheduleIssuerListLoad();
+  });
+  issuerListPasswordInput.addEventListener("change", () => {
+    syncIssuerPasswordInputs(issuerListPasswordInput.value, issuerListPasswordInput);
+    scheduleIssuerListLoad();
+  });
+}
+
+const storedIssuerPassword = getStoredIssuerPassword();
+if (storedIssuerPassword) {
+  syncIssuerPasswordInputs(storedIssuerPassword);
   window.setTimeout(scheduleIssuerListLoad, 250);
 }
 
