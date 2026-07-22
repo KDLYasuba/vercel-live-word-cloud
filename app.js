@@ -253,7 +253,7 @@ function applyIncomingState(nextRoom, nextMode, nextTitle, nextAccepting = true)
 }
 
 function getWordsSignature(words) {
-  return JSON.stringify(words.map((item) => [item.word, item.count]));
+  return JSON.stringify(words.map((item) => [item.word, item.count, item.createdAt || ""]));
 }
 
 function handleFetchedWords(words, options = {}) {
@@ -302,6 +302,20 @@ async function syncActiveRoom() {
   return activeState;
 }
 
+function hashString(value) {
+  const text = String(value || "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+
+  return hash;
+}
+
+function seededUnit(seed, salt = "") {
+  return (hashString(`${seed}:${salt}`) % 10000) / 10000;
+}
+
 function colorForWord(word) {
   const palette = [
     "#14314e",
@@ -326,12 +340,7 @@ function colorForWord(word) {
     "#4d7c0f",
   ];
 
-  let hash = 0;
-  for (let i = 0; i < word.length; i += 1) {
-    hash = (hash * 31 + word.charCodeAt(i)) >>> 0;
-  }
-
-  return palette[hash % palette.length];
+  return palette[hashString(word) % palette.length];
 }
 
 function sizeForCount(count) {
@@ -371,14 +380,15 @@ function intersects(a, b) {
   );
 }
 
-function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY) {
+function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY, seed = "") {
   const candidates = [{ x: baseX, y: baseY }];
   const radiusSteps = isScreenMode ? [24, 48, 72, 96, 132, 170, 210, 250, 300] : [18, 36, 54, 72, 96, 124, 154];
   const angleSteps = 12;
+  const angleOffset = seededUnit(seed, "candidate-angle") * Math.PI * 2;
 
   for (const radius of radiusSteps) {
     for (let i = 0; i < angleSteps; i += 1) {
-      const angle = (Math.PI * 2 * i) / angleSteps;
+      const angle = angleOffset + (Math.PI * 2 * i) / angleSteps;
       const x = Math.min(width - marginX, Math.max(marginX, baseX + Math.cos(angle) * radius));
       const y = Math.min(height - marginY, Math.max(marginY, baseY + Math.sin(angle) * radius));
       candidates.push({ x, y });
@@ -388,31 +398,37 @@ function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY) 
   return candidates;
 }
 
-function buildGridBasePosition(index, columns, rows, width, height) {
-  const col = index % columns;
-  const row = Math.floor(index / columns);
-  const jitterX = ((index * 41) % 20) - 10;
-  const jitterY = ((index * 59) % 24) - 12;
+function buildScatterBasePosition(seed, index, total, width, height) {
+  const progress = 0.18 + seededUnit(seed, "radius") * 0.74;
+  const angle = seededUnit(seed, "angle") * Math.PI * 2;
+  const spiralBias = Math.sqrt(index / Math.max(1, total - 1));
+  const radiusScale = Math.min(1, progress * 0.78 + spiralBias * 0.26);
 
   return {
-    x: ((col + 0.5) / columns) * width + jitterX * (isScreenMode ? 8 : 5),
-    y: ((row + 0.5) / rows) * height + jitterY * (isScreenMode ? 7 : 4),
+    x: width * 0.5 + Math.cos(angle) * width * (isScreenMode ? 0.43 : 0.38) * radiusScale,
+    y: height * 0.5 + Math.sin(angle) * height * (isScreenMode ? 0.36 : 0.32) * radiusScale,
   };
 }
 
-function buildRankedBasePosition(index, total, width, height) {
+function buildRankedBasePosition(index, total, width, height, seed = "") {
   if (index === 0) {
-    return { x: width * 0.5, y: height * 0.5 };
+    const centerJitter = isScreenMode ? 26 : 16;
+    return {
+      x: width * 0.5 + (seededUnit(seed, "center-x") - 0.5) * centerJitter,
+      y: height * 0.5 + (seededUnit(seed, "center-y") - 0.5) * centerJitter,
+    };
   }
 
   const progress = Math.sqrt(index / Math.max(1, total - 1));
-  const angle = index * 2.399963229728653;
+  const angle = index * 2.399963229728653 + seededUnit(seed, "rank-angle") * 1.7;
   const radiusX = width * (isScreenMode ? 0.42 : 0.38) * progress;
   const radiusY = height * (isScreenMode ? 0.36 : 0.32) * progress;
+  const jitterX = (seededUnit(seed, "rank-x") - 0.5) * width * (isScreenMode ? 0.08 : 0.06);
+  const jitterY = (seededUnit(seed, "rank-y") - 0.5) * height * (isScreenMode ? 0.08 : 0.06);
 
   return {
-    x: width * 0.5 + Math.cos(angle) * radiusX,
-    y: height * 0.5 + Math.sin(angle) * radiusY,
+    x: width * 0.5 + Math.cos(angle) * radiusX + jitterX,
+    y: height * 0.5 + Math.sin(angle) * radiusY + jitterY,
   };
 }
 
@@ -450,12 +466,13 @@ function render(words) {
 
   words.forEach((item, index) => {
     const label = item.word;
+    const positionSeed = `${displayMode}:${label}:${item.createdAt || ""}:${index}`;
     const sizeInfo = sizeForCount(item.count);
     const fontSize = sizeInfo.size;
     const basePosition =
       displayMode === "tokens"
-        ? buildRankedBasePosition(index, words.length, width, height)
-        : buildGridBasePosition(index, columns, rows, width, height);
+        ? buildRankedBasePosition(index, words.length, width, height, positionSeed)
+        : buildScatterBasePosition(positionSeed, index, words.length, width, height);
     const rawX = basePosition.x;
     const rawY = basePosition.y;
     const chipWidth = estimateChipWidth(label, fontSize);
@@ -464,7 +481,7 @@ function render(words) {
     const marginY = chipHeight / 2 + 30;
     const safeX = Math.min(width - marginX, Math.max(marginX, rawX));
     const safeY = Math.min(height - marginY, Math.max(marginY, rawY));
-    const candidates = buildCandidatePositions(safeX, safeY, width, height, marginX, marginY);
+    const candidates = buildCandidatePositions(safeX, safeY, width, height, marginX, marginY, positionSeed);
 
     let chosen = { x: safeX, y: safeY };
     for (const candidate of candidates) {
@@ -500,7 +517,7 @@ function render(words) {
     chip.style.maxWidth = `${Math.max(160, width / columns - 10)}px`;
     chip.style.background = "transparent";
     chip.style.color = colorForWord(label);
-    chip.style.setProperty("--rotate", `${index % 3 === 0 ? "-4deg" : index % 3 === 1 ? "0deg" : "4deg"}`);
+    chip.style.setProperty("--rotate", `${Math.round((seededUnit(positionSeed, "rotate") - 0.5) * 8)}deg`);
     cloud.appendChild(chip);
   });
 }

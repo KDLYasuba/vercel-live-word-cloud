@@ -224,6 +224,7 @@ function listRawWords(entries) {
   return entries.map((entry) => ({
     word: entry.word,
     count: 1,
+    createdAt: entry.created_at || null,
   }));
 }
 
@@ -263,7 +264,10 @@ module.exports = async (req, res) => {
 
     if (req.method === "GET") {
       const state = await getRoomState(room);
-      const entries = await listEntries(room, { since: state.resetAt });
+      const entries = await listEntries(room, {
+        since: state.resetAt,
+        includeCreatedAt: mode === "raw",
+      });
       res.status(200).json({
         room,
         mode,
@@ -305,7 +309,10 @@ module.exports = async (req, res) => {
       }
 
       await insertEntry(room, normalized);
-      const entries = await listEntries(room, { since: state.resetAt });
+      const entries = await listEntries(room, {
+        since: state.resetAt,
+        includeCreatedAt: mode === "raw",
+      });
       res.status(200).json({
         ok: true,
         room,
