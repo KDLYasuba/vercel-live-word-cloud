@@ -190,6 +190,7 @@ function parseEvent(value, options = {}) {
     title: String(parsed.title || parsed.room),
     expiresAt: parsed.expiresAt || null,
     createdAt: parsed.createdAt || null,
+    deletedAt: parsed.deletedAt || null,
   };
 }
 
@@ -209,7 +210,8 @@ async function getEventByToken(token) {
   }
 
   const entries = await listEntries(getEventKey(normalizedToken));
-  return parseEvent(entries[0]?.word, { requireToken: true });
+  const event = parseEvent(entries[0]?.word, { requireToken: true });
+  return event?.deletedAt ? null : event;
 }
 
 async function setEvent(event) {
@@ -233,29 +235,63 @@ async function setEvent(event) {
   return nextEvent;
 }
 
+async function setEventDeleted(event) {
+  const deletedEvent = {
+    token: event.token,
+    room: event.room,
+    title: event.title || event.room,
+    expiresAt: event.expiresAt || null,
+    createdAt: event.createdAt || null,
+    deletedAt: new Date().toISOString(),
+  };
+  await insertEntry(getEventKey(deletedEvent.token), JSON.stringify(deletedEvent));
+  return deletedEvent;
+}
+
+function latestVisibleEvents(entries, limit) {
+  const events = [];
+  const seenTokens = new Set();
+
+  for (const entry of entries) {
+    const event = parseEvent(entry.word, { requireToken: true });
+    if (!event || seenTokens.has(event.token)) {
+      continue;
+    }
+
+    seenTokens.add(event.token);
+    if (!event.deletedAt) {
+      events.push(event);
+    }
+
+    if (events.length >= limit) {
+      break;
+    }
+  }
+
+  return events;
+}
+
 async function listEvents(options = {}) {
   const limit = Number(options.limit || 100);
   if (!hasSupabaseEnv()) {
     const entries = await readLocalEntries();
-    return entries
+    const sortedEntries = entries
       .filter((entry) => String(entry.room || "").startsWith(EVENT_PREFIX))
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, limit)
-      .map((entry) => parseEvent(entry.word, { requireToken: true }))
-      .filter(Boolean);
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return latestVisibleEvents(sortedEntries, limit);
   }
 
   const filter = new URLSearchParams({
     select: "word",
     room: `like.${EVENT_PREFIX}*`,
     order: "created_at.desc",
-    limit: String(limit),
+    limit: String(limit * 3),
   });
   const entries = await supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
     method: "GET",
   });
 
-  return entries.map((entry) => parseEvent(entry.word, { requireToken: true })).filter(Boolean);
+  return latestVisibleEvents(entries, limit);
 }
 
 async function getEventForRoom(room) {
@@ -392,5 +428,6 @@ module.exports = {
   setActiveState,
   setActiveRoom,
   setEvent,
+  setEventDeleted,
   setRoomState,
 };

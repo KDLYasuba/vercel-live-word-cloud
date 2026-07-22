@@ -190,6 +190,10 @@ body {
   width: 100%;
 }
 
+.export-control .field-note {
+  margin: 10px 0 6px;
+}
+
 .participant-title {
   display: grid;
   gap: 4px;
@@ -345,6 +349,16 @@ body {
   flex: 1;
   padding: 10px 12px;
   text-align: center;
+}
+
+.danger-button {
+  color: #a23f2d;
+  border-color: rgba(162, 63, 45, 0.28);
+  background: rgba(162, 63, 45, 0.06);
+}
+
+.danger-button:hover {
+  background: rgba(162, 63, 45, 0.1);
 }
 
 .cloud {

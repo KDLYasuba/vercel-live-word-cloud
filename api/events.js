@@ -7,6 +7,7 @@ const {
   listEvents,
   normalizeMode,
   setEvent,
+  setEventDeleted,
   setRoomState,
 } = require("./_supabase");
 
@@ -131,6 +132,32 @@ module.exports = async (req, res) => {
       if (req.body?.action === "list") {
         const events = await buildEventList(req);
         res.status(200).json({ events });
+        return;
+      }
+
+      if (req.body?.action === "delete") {
+        const token = String(req.body?.token || "").trim();
+        const event = await getEventByToken(token);
+        if (!event) {
+          res.status(404).json({ error: "Event not found." });
+          return;
+        }
+
+        if (!isEventExpired(event)) {
+          res.status(400).json({ error: "Only expired events can be deleted." });
+          return;
+        }
+
+        await setEventDeleted(event);
+        await setRoomState({
+          room: event.room,
+          title: event.title,
+          mode: "raw",
+          accepting: false,
+          resetAt: new Date().toISOString(),
+        });
+        const events = await buildEventList(req);
+        res.status(200).json({ ok: true, events });
         return;
       }
 

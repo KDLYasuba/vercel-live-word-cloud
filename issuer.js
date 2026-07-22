@@ -98,6 +98,17 @@ function renderIssuerList(events) {
     screenLink.textContent = "表示";
 
     linkRow.append(participantLink, screenLink);
+
+    if (event.expired) {
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "ghost-button danger-button issuer-delete-button";
+      deleteButton.type = "button";
+      deleteButton.dataset.token = event.token || "";
+      deleteButton.dataset.title = event.title || event.room || "";
+      deleteButton.textContent = "削除";
+      linkRow.appendChild(deleteButton);
+    }
+
     item.append(titleRow, expires, adminLabel, adminUrl, linkRow);
     issuerList.appendChild(item);
   }
@@ -129,6 +140,40 @@ async function loadIssuerList() {
 
   renderIssuerList(payload.events || []);
   setIssuerStatus("発行済みURL一覧を更新しました。");
+}
+
+async function deleteExpiredEvent(token, title) {
+  const password = String(issuerPasswordInput?.value || "");
+  if (!password) {
+    setIssuerStatus("削除するには発行パスワードを入力してください。");
+    return;
+  }
+
+  if (!token) {
+    setIssuerStatus("削除対象のURLを特定できませんでした。");
+    return;
+  }
+
+  const confirmed = window.confirm(`期限切れのURL「${title || "無題"}」を一覧から削除しますか？`);
+  if (!confirmed) {
+    return;
+  }
+
+  const response = await fetch("/api/events", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "delete", token, password }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.error || "削除に失敗しました。");
+  }
+
+  renderIssuerList(payload.events || []);
+  setIssuerStatus("期限切れURLを削除しました。");
 }
 
 if (issuerForm) {
@@ -170,6 +215,21 @@ if (issuerListRefresh) {
   issuerListRefresh.addEventListener("click", async () => {
     try {
       await loadIssuerList();
+    } catch (error) {
+      setIssuerStatus(error.message);
+    }
+  });
+}
+
+if (issuerList) {
+  issuerList.addEventListener("click", async (event) => {
+    const button = event.target.closest(".issuer-delete-button");
+    if (!button) {
+      return;
+    }
+
+    try {
+      await deleteExpiredEvent(button.dataset.token, button.dataset.title);
     } catch (error) {
       setIssuerStatus(error.message);
     }
