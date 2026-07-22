@@ -402,14 +402,16 @@ function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY, 
 
 function buildScatterBasePosition(seed, index, total, width, height) {
   const spread = Math.min(1, Math.max(0, (total - 5) / 20));
-  const minRadius = 0.1 + spread * 0.2;
-  const maxRadius = 0.42 + spread * 0.56;
-  const progress = minRadius + Math.sqrt(seededUnit(seed, "radius")) * (maxRadius - minRadius);
+  const centerRadius = 0.12 + seededUnit(seed, "center-radius") * 0.34;
   const angle = seededUnit(seed, "angle") * Math.PI * 2;
+  const centerX = width * 0.5 + Math.cos(angle) * width * 0.3 * centerRadius;
+  const centerY = height * 0.5 + Math.sin(angle) * height * 0.28 * centerRadius;
+  const areaX = width * (0.06 + seededUnit(seed, "area-x") * 0.88);
+  const areaY = height * (0.08 + seededUnit(seed, "area-y") * 0.82);
 
   return {
-    x: width * 0.5 + Math.cos(angle) * width * (isScreenMode ? 0.47 : 0.42) * progress,
-    y: height * 0.5 + Math.sin(angle) * height * (isScreenMode ? 0.4 : 0.36) * progress,
+    x: centerX * (1 - spread) + areaX * spread,
+    y: centerY * (1 - spread) + areaY * spread,
   };
 }
 
