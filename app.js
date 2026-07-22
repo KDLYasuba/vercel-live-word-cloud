@@ -401,14 +401,15 @@ function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY, 
 }
 
 function buildScatterBasePosition(seed, index, total, width, height) {
-  const progress = 0.18 + seededUnit(seed, "radius") * 0.74;
+  const spread = Math.min(1, Math.max(0, (total - 5) / 20));
+  const minRadius = 0.1 + spread * 0.2;
+  const maxRadius = 0.42 + spread * 0.56;
+  const progress = minRadius + Math.sqrt(seededUnit(seed, "radius")) * (maxRadius - minRadius);
   const angle = seededUnit(seed, "angle") * Math.PI * 2;
-  const spiralBias = Math.sqrt(index / Math.max(1, total - 1));
-  const radiusScale = Math.min(1, progress * 0.78 + spiralBias * 0.26);
 
   return {
-    x: width * 0.5 + Math.cos(angle) * width * (isScreenMode ? 0.43 : 0.38) * radiusScale,
-    y: height * 0.5 + Math.sin(angle) * height * (isScreenMode ? 0.36 : 0.32) * radiusScale,
+    x: width * 0.5 + Math.cos(angle) * width * (isScreenMode ? 0.47 : 0.42) * progress,
+    y: height * 0.5 + Math.sin(angle) * height * (isScreenMode ? 0.4 : 0.36) * progress,
   };
 }
 
