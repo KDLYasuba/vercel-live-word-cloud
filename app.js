@@ -366,7 +366,7 @@ function sizeForCount(count) {
 }
 
 function estimateChipWidth(text, fontSize, maxWidth = Infinity) {
-  const naturalWidth = Math.max(fontSize * 2.4, text.length * fontSize * 0.74);
+  const naturalWidth = Math.max(fontSize * 2.4, text.length * fontSize * 0.98);
   return Math.min(naturalWidth, maxWidth);
 }
 
@@ -375,9 +375,9 @@ function estimateChipHeight(text, fontSize, maxWidth = Infinity) {
     return fontSize * 1.9;
   }
 
-  const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontSize * 0.74)));
+  const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontSize * 0.98)));
   const lines = Math.max(1, Math.ceil(String(text || "").length / charsPerLine));
-  return fontSize * (lines === 1 ? 1.9 : 0.95 + lines * 1.42);
+  return fontSize * (lines === 1 ? 2.1 : 1.1 + lines * 1.65);
 }
 
 function intersects(a, b) {
@@ -410,13 +410,18 @@ function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY, 
 }
 
 function buildScatterBasePosition(seed, index, total, width, height) {
-  const spread = Math.min(1, Math.max(0, (total - 5) / 20));
+  const spread = Math.min(1, Math.max(0, (total - 3) / 10));
   const centerRadius = 0.12 + seededUnit(seed, "center-radius") * 0.34;
   const angle = seededUnit(seed, "angle") * Math.PI * 2;
   const centerX = width * 0.5 + Math.cos(angle) * width * 0.3 * centerRadius;
   const centerY = height * 0.5 + Math.sin(angle) * height * 0.28 * centerRadius;
-  const areaX = width * (0.06 + seededUnit(seed, "area-x") * 0.88);
-  const areaY = height * (0.08 + seededUnit(seed, "area-y") * 0.82);
+  const cols = Math.max(3, Math.ceil(Math.sqrt(total * (width / Math.max(height, 1)))));
+  const rows = Math.max(2, Math.ceil(total / cols));
+  const cellIndex = hashString(`${seed}:cell`) % (cols * rows);
+  const col = cellIndex % cols;
+  const row = Math.floor(cellIndex / cols);
+  const areaX = width * ((col + 0.18 + seededUnit(seed, "cell-x") * 0.64) / cols);
+  const areaY = height * ((row + 0.2 + seededUnit(seed, "cell-y") * 0.6) / rows);
 
   return {
     x: centerX * (1 - spread) + areaX * spread,
@@ -459,11 +464,13 @@ function getWordPositionContext(width, height) {
 }
 
 function buildWordBox(x, y, width, height) {
+  const paddingX = isScreenMode ? 30 : 18;
+  const paddingY = isScreenMode ? 24 : 16;
   return {
-    left: x - width / 2,
-    right: x + width / 2,
-    top: y - height / 2,
-    bottom: y + height / 2,
+    left: x - width / 2 - paddingX,
+    right: x + width / 2 + paddingX,
+    top: y - height / 2 - paddingY,
+    bottom: y + height / 2 + paddingY,
   };
 }
 
