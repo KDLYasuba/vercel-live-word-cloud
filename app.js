@@ -365,12 +365,19 @@ function sizeForCount(count) {
   };
 }
 
-function estimateChipWidth(text, fontSize) {
-  return Math.max(fontSize * 2.4, text.length * fontSize * 0.74);
+function estimateChipWidth(text, fontSize, maxWidth = Infinity) {
+  const naturalWidth = Math.max(fontSize * 2.4, text.length * fontSize * 0.74);
+  return Math.min(naturalWidth, maxWidth);
 }
 
-function estimateChipHeight(fontSize) {
-  return fontSize * 1.9;
+function estimateChipHeight(text, fontSize, maxWidth = Infinity) {
+  if (!Number.isFinite(maxWidth)) {
+    return fontSize * 1.9;
+  }
+
+  const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontSize * 0.74)));
+  const lines = Math.max(1, Math.ceil(String(text || "").length / charsPerLine));
+  return fontSize * (lines === 1 ? 1.9 : 0.95 + lines * 1.42);
 }
 
 function intersects(a, b) {
@@ -384,8 +391,10 @@ function intersects(a, b) {
 
 function buildCandidatePositions(baseX, baseY, width, height, marginX, marginY, seed = "") {
   const candidates = [{ x: baseX, y: baseY }];
-  const radiusSteps = isScreenMode ? [24, 48, 72, 96, 132, 170, 210, 250, 300] : [18, 36, 54, 72, 96, 124, 154];
-  const angleSteps = 12;
+  const radiusSteps = isScreenMode
+    ? [28, 56, 88, 124, 164, 210, 260, 318, 382, 450, 520]
+    : [18, 36, 58, 84, 114, 148, 186, 228];
+  const angleSteps = isScreenMode ? 18 : 14;
   const angleOffset = seededUnit(seed, "candidate-angle") * Math.PI * 2;
 
   for (const radius of radiusSteps) {
@@ -465,6 +474,37 @@ function clampWordPosition(position, marginX, marginY, width, height) {
   };
 }
 
+function findAvailablePosition(basePosition, renderItem, width, height, placedBoxes) {
+  const safePosition = clampWordPosition(
+    basePosition,
+    renderItem.marginX,
+    renderItem.marginY,
+    width,
+    height,
+  );
+  const candidates = buildCandidatePositions(
+    safePosition.x,
+    safePosition.y,
+    width,
+    height,
+    renderItem.marginX,
+    renderItem.marginY,
+    renderItem.positionSeed,
+  );
+
+  for (const candidate of candidates) {
+    const box = buildWordBox(candidate.x, candidate.y, renderItem.chipWidth, renderItem.chipHeight);
+    if (!placedBoxes.some((placed) => intersects(box, placed))) {
+      return { chosen: candidate, box };
+    }
+  }
+
+  return {
+    chosen: safePosition,
+    box: buildWordBox(safePosition.x, safePosition.y, renderItem.chipWidth, renderItem.chipHeight),
+  };
+}
+
 function render(words) {
   if (!cloud) {
     return;
@@ -495,6 +535,7 @@ function render(words) {
   const columns = Math.max(2, Math.ceil(Math.sqrt(words.length)));
   const width = cloud.clientWidth || (isScreenMode ? 1400 : 800);
   const height = cloud.clientHeight || (isScreenMode ? 800 : 560);
+  const maxChipWidth = Math.max(160, width / columns - 10);
   const nextPositionContext = getWordPositionContext(width, height);
   if (nextPositionContext !== wordPositionContext) {
     wordPositionCache = new Map();
@@ -505,8 +546,8 @@ function render(words) {
     const label = item.word;
     const sizeInfo = sizeForCount(item.count);
     const fontSize = sizeInfo.size;
-    const chipWidth = estimateChipWidth(label, fontSize);
-    const chipHeight = estimateChipHeight(fontSize);
+    const chipWidth = estimateChipWidth(label, fontSize, maxChipWidth);
+    const chipHeight = estimateChipHeight(label, fontSize, maxChipWidth);
     const marginX = chipWidth / 2 + 34;
     const marginY = chipHeight / 2 + 30;
     const positionKey = getWordPositionKey(item, index);
@@ -542,11 +583,18 @@ function render(words) {
     }
 
     const chosen = clampWordPosition(cached, renderItem.marginX, renderItem.marginY, width, height);
+    const box = buildWordBox(chosen.x, chosen.y, renderItem.chipWidth, renderItem.chipHeight);
+    if (placedBoxes.some((placed) => intersects(box, placed))) {
+      const relocated = findAvailablePosition(chosen, renderItem, width, height, placedBoxes);
+      renderItem.chosen = relocated.chosen;
+      wordPositionCache.set(renderItem.positionKey, relocated.chosen);
+      placedBoxes.push(relocated.box);
+      continue;
+    }
+
     renderItem.chosen = chosen;
     wordPositionCache.set(renderItem.positionKey, chosen);
-    placedBoxes.push(
-      buildWordBox(chosen.x, chosen.y, renderItem.chipWidth, renderItem.chipHeight),
-    );
+    placedBoxes.push(box);
   }
 
   for (const renderItem of renderItems) {
@@ -558,40 +606,8 @@ function render(words) {
       displayMode === "tokens"
         ? buildRankedBasePosition(renderItem.index, words.length, width, height, renderItem.positionSeed)
         : buildScatterBasePosition(renderItem.positionSeed, renderItem.index, words.length, width, height);
-    const safePosition = clampWordPosition(
-      basePosition,
-      renderItem.marginX,
-      renderItem.marginY,
-      width,
-      height,
-    );
-    const candidates = buildCandidatePositions(
-      safePosition.x,
-      safePosition.y,
-      width,
-      height,
-      renderItem.marginX,
-      renderItem.marginY,
-      renderItem.positionSeed,
-    );
-
-    let chosen = safePosition;
-    let placed = false;
-    for (const candidate of candidates) {
-      const box = buildWordBox(candidate.x, candidate.y, renderItem.chipWidth, renderItem.chipHeight);
-
-      if (!placedBoxes.some((placed) => intersects(box, placed))) {
-        chosen = candidate;
-        placedBoxes.push(box);
-        placed = true;
-        break;
-      }
-    }
-
-    if (!placed) {
-      placedBoxes.push(buildWordBox(chosen.x, chosen.y, renderItem.chipWidth, renderItem.chipHeight));
-    }
-
+    const { chosen, box } = findAvailablePosition(basePosition, renderItem, width, height, placedBoxes);
+    placedBoxes.push(box);
     renderItem.chosen = chosen;
     wordPositionCache.set(renderItem.positionKey, chosen);
   }
@@ -604,7 +620,7 @@ function render(words) {
     chip.style.left = `${chosen.x}px`;
     chip.style.top = `${chosen.y}px`;
     chip.style.fontSize = `${fontSize}px`;
-    chip.style.maxWidth = `${Math.max(160, width / columns - 10)}px`;
+    chip.style.maxWidth = `${maxChipWidth}px`;
     chip.style.background = "transparent";
     chip.style.color = colorForWord(label);
     chip.style.setProperty("--rotate", `${Math.round((seededUnit(positionSeed, "rotate") - 0.5) * 8)}deg`);
