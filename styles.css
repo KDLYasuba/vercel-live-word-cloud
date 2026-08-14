@@ -203,6 +203,17 @@ body {
   font-size: 1.08em;
 }
 
+.privacy-notice,
+.admin-expiry {
+  margin: 8px 0 0;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.admin-expiry {
+  color: rgba(20, 49, 78, 0.72);
+}
+
 .field-note {
   margin: -6px 0 2px;
   color: rgba(20, 49, 78, 0.66);

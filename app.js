@@ -16,6 +16,7 @@ const wordModeButton = document.getElementById("word-mode-button");
 const rawModeButton = document.getElementById("raw-mode-button");
 const acceptanceToggleButton = document.getElementById("acceptance-toggle-button");
 const csvExportButton = document.getElementById("csv-export-button");
+const adminExpiryEl = document.getElementById("admin-expiry");
 const participantQr = document.getElementById("participant-qr");
 const participantQrCard = document.querySelector(".participant-qr-card");
 const participantQrBackdrop = document.getElementById("participant-qr-backdrop");
@@ -37,6 +38,8 @@ let room = normalizeRoom(params.get("room") || cachedState.room || "main");
 let displayTitle = normalizeRoom(hasRoomParam ? room : cachedState.title || room);
 let displayMode = normalizeMode(cachedState.mode);
 let isAccepting = cachedState.accepting !== false;
+let eventExpiresAt = cachedState.expiresAt || null;
+let eventExpired = cachedState.expired === true;
 let refreshTimer = null;
 let idleCheckTimer = null;
 let titleRefreshTimer = null;
@@ -107,7 +110,34 @@ function updateRoomUi() {
     acceptanceNotice.classList.toggle("is-hidden", isAccepting);
   }
 
+  if (adminExpiryEl) {
+    if (eventExpiresAt) {
+      const suffix = eventExpired ? "（期限切れ）" : "";
+      adminExpiryEl.textContent = `貸出終了日: ${formatDateTime(eventExpiresAt)}${suffix}`;
+      adminExpiryEl.classList.remove("is-hidden");
+    } else {
+      adminExpiryEl.textContent = "";
+      adminExpiryEl.classList.add("is-hidden");
+    }
+  }
+
   updateParticipantQr();
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "期限なし";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function getParticipantUrl() {
@@ -171,6 +201,8 @@ function notifyStateChange(nextRoom, nextMode, nextTitle = displayTitle, nextAcc
     title: nextTitle,
     mode: normalizeMode(nextMode),
     accepting: nextAccepting !== false,
+    expiresAt: eventExpiresAt,
+    expired: eventExpired === true,
   });
 
   try {
@@ -219,6 +251,8 @@ function parseCachedState(value) {
       title: parsed.title,
       mode: normalizeMode(parsed.mode),
       accepting: parsed.accepting !== false,
+      expiresAt: parsed.expiresAt || null,
+      expired: parsed.expired === true,
     };
   } catch (error) {
     return { room: value, title: value, mode: "raw", accepting: true };
@@ -295,12 +329,17 @@ async function fetchActiveRoom() {
     title: normalizeRoom(payload.title || payload.room),
     mode: normalizeMode(payload.mode),
     accepting: payload.accepting !== false,
+    expiresAt: payload.expiresAt || null,
+    expired: payload.expired === true,
   };
 }
 
 async function syncActiveRoom() {
   const activeState = await fetchActiveRoom();
+  eventExpiresAt = activeState.expiresAt || null;
+  eventExpired = activeState.expired === true;
   applyIncomingState(activeState.room, activeState.mode, activeState.title, activeState.accepting);
+  updateRoomUi();
   return activeState;
 }
 

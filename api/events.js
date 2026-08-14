@@ -143,11 +143,6 @@ module.exports = async (req, res) => {
           return;
         }
 
-        if (!isEventExpired(event)) {
-          res.status(400).json({ error: "Only expired events can be deleted." });
-          return;
-        }
-
         await setEventDeleted(event);
         await setRoomState({
           room: event.room,

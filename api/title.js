@@ -60,6 +60,11 @@ module.exports = async (req, res) => {
       }
 
       const roomEvent = !tokenEvent && room ? await getEventForRoom(room) : null;
+      if (roomEvent?.deletedAt) {
+        res.status(403).json({ error: "This room is no longer available." });
+        return;
+      }
+
       const event = tokenEvent || roomEvent;
       const state = room ? await getRoomState(room) : await getActiveState();
       const expired = event ? isEventExpired(event) : false;

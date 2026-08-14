@@ -264,6 +264,12 @@ module.exports = async (req, res) => {
 
     if (req.method === "GET") {
       const state = await getRoomState(room);
+      const event = await getEventForRoom(room);
+      if (event?.deletedAt || (event && isEventExpired(event))) {
+        res.status(403).json({ error: "This room has expired." });
+        return;
+      }
+
       const entries = await listEntries(room, {
         since: state.resetAt,
         includeCreatedAt: mode === "raw",
@@ -284,7 +290,7 @@ module.exports = async (req, res) => {
 
       const state = await getRoomState(room);
       const event = await getEventForRoom(room);
-      if (event && isEventExpired(event)) {
+      if (event?.deletedAt || (event && isEventExpired(event))) {
         res.status(403).json({ error: "This room has expired." });
         return;
       }

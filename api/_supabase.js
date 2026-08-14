@@ -245,6 +245,17 @@ async function setEventDeleted(event) {
     deletedAt: new Date().toISOString(),
   };
   await insertEntry(getEventKey(deletedEvent.token), JSON.stringify(deletedEvent));
+  await insertEntry(
+    EVENT_INDEX_ROOM,
+    JSON.stringify({
+      token: deletedEvent.token,
+      room: deletedEvent.room,
+      title: deletedEvent.title,
+      expiresAt: deletedEvent.expiresAt,
+      createdAt: deletedEvent.createdAt,
+      deletedAt: deletedEvent.deletedAt,
+    }),
+  );
   return deletedEvent;
 }
 

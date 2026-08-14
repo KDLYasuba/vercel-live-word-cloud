@@ -133,15 +133,14 @@ function renderIssuerList(events) {
 
     linkRow.append(participantLink, screenLink);
 
-    if (event.expired) {
-      const deleteButton = document.createElement("button");
-      deleteButton.className = "ghost-button danger-button issuer-delete-button";
-      deleteButton.type = "button";
-      deleteButton.dataset.token = event.token || "";
-      deleteButton.dataset.title = event.title || event.room || "";
-      deleteButton.textContent = "削除";
-      linkRow.appendChild(deleteButton);
-    }
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "ghost-button danger-button issuer-delete-button";
+    deleteButton.type = "button";
+    deleteButton.dataset.token = event.token || "";
+    deleteButton.dataset.title = event.title || event.room || "";
+    deleteButton.dataset.expired = event.expired ? "true" : "false";
+    deleteButton.textContent = event.expired ? "削除" : "無効化";
+    linkRow.appendChild(deleteButton);
 
     item.append(titleRow, expires, adminLabel, adminUrl, linkRow);
     issuerList.appendChild(item);
@@ -193,19 +192,20 @@ function scheduleIssuerListLoad() {
   }, 300);
 }
 
-async function deleteExpiredEvent(token, title) {
+async function deleteIssuedEvent(token, title, isExpired) {
   const password = getIssuerPasswordValue();
   if (!password) {
-    setIssuerStatus("削除するには発行パスワードを入力してください。");
+    setIssuerStatus("無効化するには発行パスワードを入力してください。");
     return;
   }
 
   if (!token) {
-    setIssuerStatus("削除対象のURLを特定できませんでした。");
+    setIssuerStatus("対象のURLを特定できませんでした。");
     return;
   }
 
-  const confirmed = window.confirm(`期限切れのURL「${title || "無題"}」を一覧から削除しますか？`);
+  const actionLabel = isExpired ? "一覧から削除" : "即時無効化";
+  const confirmed = window.confirm(`URL「${title || "無題"}」を${actionLabel}しますか？`);
   if (!confirmed) {
     return;
   }
@@ -224,7 +224,7 @@ async function deleteExpiredEvent(token, title) {
   }
 
   renderIssuerList(payload.events || []);
-  setIssuerStatus("期限切れURLを削除しました。");
+  setIssuerStatus(isExpired ? "期限切れURLを削除しました。" : "URLを即時無効化しました。");
 }
 
 if (issuerForm) {
@@ -308,7 +308,11 @@ if (issuerList) {
     }
 
     try {
-      await deleteExpiredEvent(button.dataset.token, button.dataset.title);
+      await deleteIssuedEvent(
+        button.dataset.token,
+        button.dataset.title,
+        button.dataset.expired === "true",
+      );
     } catch (error) {
       setIssuerStatus(error.message);
     }
