@@ -9,5 +9,11 @@
       "source": "/issuer",
       "destination": "/issuer.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup",
+      "schedule": "0 18 * * *"
+    }
   ]
 }

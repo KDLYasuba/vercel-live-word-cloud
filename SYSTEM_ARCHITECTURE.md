@@ -135,6 +135,7 @@ sequenceDiagram
 | `SUPABASE_TABLE` | 保存テーブル名。未設定時は `word_entries` |
 | `RESET_PASSWORD` | タイトル適用・リセット用の管理者パスワード |
 | `ISSUER_PASSWORD` | 管理URL発行用パスワード。`RESET_PASSWORD` とは別管理 |
+| `CRON_SECRET` | 期限切れデータ自動削除APIをVercel Cronから呼ぶための認証トークン |
 | `RATE_LIMIT_PER_IP` | 投稿APIのIP・room単位上限。未設定時は `120` |
 | `RATE_LIMIT_PER_ROOM` | 投稿APIのroom単位上限。未設定時は `2000` |
 
@@ -144,9 +145,13 @@ sequenceDiagram
 flowchart LR
   Local["Local Repository"] -->|git push| GitHub["GitHub<br/>KDLYasuba/vercel-live-word-cloud"]
   GitHub -->|Git連携デプロイ| Vercel["Vercel<br/>vercel-live-word-cloud"]
-  Vercel -->|Serverless Functions| APIs["/api/events<br/>/api/title<br/>/api/words<br/>/api/reset"]
+  Vercel -->|Serverless Functions| APIs["/api/events<br/>/api/title<br/>/api/words<br/>/api/reset<br/>/api/cleanup"]
+  Vercel -->|毎日03:00 JST| Cleanup["Vercel Cron<br/>/api/cleanup"]
   APIs --> Supabase["Supabase"]
+  Cleanup --> Supabase
 ```
+
+`/api/cleanup` は `CRON_SECRET` によるBearer認証を必須とし、貸出終了期限から3日を過ぎたイベントの投稿データ、ルーム状態、イベント管理レコードを削除します。
 
 ## ローカル実行
 

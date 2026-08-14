@@ -82,6 +82,36 @@ async function insertLocalEntry(room, word) {
   return [{ room, word }];
 }
 
+async function deleteLocalEntriesByRoom(room) {
+  const entries = await readLocalEntries();
+  const keptEntries = entries.filter((entry) => entry.room !== room);
+  await writeLocalEntries(keptEntries);
+  return entries.length - keptEntries.length;
+}
+
+async function listLocalEntriesByRoom(room, options = {}) {
+  const entries = await readLocalEntries();
+  const limit = Number(options.limit || ENTRY_FETCH_LIMIT);
+  return entries
+    .filter((entry) => entry.room === room)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, limit)
+    .map((entry) => ({
+      id: entry.id,
+      room: entry.room,
+      word: entry.word,
+      created_at: entry.created_at,
+    }));
+}
+
+async function deleteLocalEntriesByIds(ids) {
+  const targetIds = new Set(ids.map((id) => String(id)));
+  const entries = await readLocalEntries();
+  const keptEntries = entries.filter((entry) => !targetIds.has(String(entry.id)));
+  await writeLocalEntries(keptEntries);
+  return entries.length - keptEntries.length;
+}
+
 async function supabaseFetch(path, options = {}) {
   assertEnv();
 
@@ -144,6 +174,55 @@ async function insertEntry(room, word) {
     method: "POST",
     body: JSON.stringify([{ room, word }]),
   });
+}
+
+async function deleteEntriesByRoom(room) {
+  if (!hasSupabaseEnv()) {
+    return deleteLocalEntriesByRoom(room);
+  }
+
+  const filter = new URLSearchParams({
+    room: `eq.${room}`,
+  });
+  const deleted = await supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
+    method: "DELETE",
+  });
+  return Array.isArray(deleted) ? deleted.length : 0;
+}
+
+async function listEntriesByRoomWithIds(room, options = {}) {
+  if (!hasSupabaseEnv()) {
+    return listLocalEntriesByRoom(room, options);
+  }
+
+  const filter = new URLSearchParams({
+    select: "id,room,word,created_at",
+    room: `eq.${room}`,
+    order: "created_at.desc",
+    limit: String(options.limit || ENTRY_FETCH_LIMIT),
+  });
+  return supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
+    method: "GET",
+  });
+}
+
+async function deleteEntriesByIds(ids) {
+  const normalizedIds = ids.map((id) => String(id)).filter(Boolean);
+  if (!normalizedIds.length) {
+    return 0;
+  }
+
+  if (!hasSupabaseEnv()) {
+    return deleteLocalEntriesByIds(normalizedIds);
+  }
+
+  const filter = new URLSearchParams({
+    id: `in.(${normalizedIds.join(",")})`,
+  });
+  const deleted = await supabaseFetch(`${SUPABASE_TABLE}?${filter.toString()}`, {
+    method: "DELETE",
+  });
+  return Array.isArray(deleted) ? deleted.length : 0;
 }
 
 function safeParseJson(value) {
@@ -259,9 +338,10 @@ async function setEventDeleted(event) {
   return deletedEvent;
 }
 
-function latestVisibleEvents(entries, limit) {
+function latestEvents(entries, limit, options = {}) {
   const events = [];
   const seenTokens = new Set();
+  const includeDeleted = options.includeDeleted === true;
 
   for (const entry of entries) {
     const event = parseEvent(entry.word, { requireToken: true });
@@ -270,7 +350,7 @@ function latestVisibleEvents(entries, limit) {
     }
 
     seenTokens.add(event.token);
-    if (!event.deletedAt) {
+    if (includeDeleted || !event.deletedAt) {
       events.push(event);
     }
 
@@ -289,7 +369,7 @@ async function listEvents(options = {}) {
     const sortedEntries = entries
       .filter((entry) => String(entry.room || "").startsWith(EVENT_PREFIX))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return latestVisibleEvents(sortedEntries, limit);
+    return latestEvents(sortedEntries, limit, options);
   }
 
   const filter = new URLSearchParams({
@@ -302,7 +382,7 @@ async function listEvents(options = {}) {
     method: "GET",
   });
 
-  return latestVisibleEvents(entries, limit);
+  return latestEvents(entries, limit, options);
 }
 
 async function getEventForRoom(room) {
@@ -392,6 +472,59 @@ async function setRoomState(state) {
   return nextState;
 }
 
+function isEventPastCleanupGrace(event, now = new Date(), graceMs = 3 * 24 * 60 * 60 * 1000) {
+  if (!event?.expiresAt) {
+    return false;
+  }
+
+  const expiresAt = new Date(event.expiresAt).getTime();
+  return Number.isFinite(expiresAt) && expiresAt + graceMs <= now.getTime();
+}
+
+async function deleteEventData(event) {
+  const indexEntries = await listEntriesByRoomWithIds(EVENT_INDEX_ROOM, { limit: EXPORT_FETCH_LIMIT });
+  const eventIndexIds = indexEntries
+    .filter((entry) => {
+      const indexedEvent = parseEvent(entry.word);
+      return indexedEvent?.room === event.room || indexedEvent?.token === event.token;
+    })
+    .map((entry) => entry.id);
+
+  const deleted = {
+    words: await deleteEntriesByRoom(event.room),
+    roomState: await deleteEntriesByRoom(getRoomStateKey(event.room)),
+    eventToken: event.token ? await deleteEntriesByRoom(getEventKey(event.token)) : 0,
+    eventIndex: await deleteEntriesByIds(eventIndexIds),
+  };
+
+  return {
+    room: event.room,
+    title: event.title || event.room,
+    expiresAt: event.expiresAt,
+    deleted,
+  };
+}
+
+async function cleanupExpiredEventData(options = {}) {
+  const now = options.now || new Date();
+  const graceMs = Number(options.graceMs || 3 * 24 * 60 * 60 * 1000);
+  const events = await listEvents({
+    includeDeleted: true,
+    limit: Number(options.limit || EXPORT_FETCH_LIMIT),
+  });
+  const targets = events.filter((event) => isEventPastCleanupGrace(event, now, graceMs));
+  const cleaned = [];
+
+  for (const event of targets) {
+    cleaned.push(await deleteEventData(event));
+  }
+
+  return {
+    checked: events.length,
+    cleaned,
+  };
+}
+
 async function setActiveRoom(room) {
   const current = await getActiveState();
   const state = await setActiveState({ room, mode: current.mode });
@@ -430,6 +563,7 @@ module.exports = {
   listEvents,
   getRoom,
   getRoomState,
+  cleanupExpiredEventData,
   insertEntry,
   isInternalRoom,
   isEventExpired,

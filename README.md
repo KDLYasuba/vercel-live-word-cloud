@@ -40,6 +40,7 @@ Vercel 上ではサーバーメモリ保持が安定しないため、外部ス�
 - `SUPABASE_TABLE`
 - `RESET_PASSWORD`
 - `ISSUER_PASSWORD`
+- `CRON_SECRET`
 
 サンプルは [.env.example](/Users/yasuba/Library/CloudStorage/Dropbox/workspace/AI/Codex/vercel-live-word-cloud/.env.example) にあります。
 
@@ -80,6 +81,7 @@ npm run deploy
 司会者画面の「CSVデータを出力」から、現在の表示対象投稿を `タイトル,ワード,時間` の3列で出力できます。
 CSVはShift-JIS形式です。
 期限付き司会者URLのCSV出力は、URLの終了期限から3日後まで利用できます。
+終了期限から3日を過ぎたイベントの投稿データは、Vercel Cron から呼ばれる `/api/cleanup` によって自動削除されます。
 
 ## 補足
 
