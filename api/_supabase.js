@@ -476,6 +476,22 @@ async function getRoomState(room) {
   };
 }
 
+async function listRoomStates(room, options = {}) {
+  const normalizedRoom = room || "main";
+  const entries = await listEntries(getRoomStateKey(normalizedRoom), {
+    includeCreatedAt: true,
+    limit: options.limit || EXPORT_FETCH_LIMIT,
+  });
+
+  return entries
+    .map((entry) => ({
+      ...parseActiveState(entry.word),
+      createdAt: entry.created_at || null,
+    }))
+    .filter((state) => state.createdAt)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+}
+
 async function setRoomState(state) {
   const room = state.room || "main";
   const nextState = {
@@ -579,6 +595,7 @@ module.exports = {
   getEventByToken,
   getEventForRoom,
   listEvents,
+  listRoomStates,
   getRoom,
   getRoomState,
   cleanupExpiredEventData,

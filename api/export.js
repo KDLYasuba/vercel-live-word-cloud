@@ -7,6 +7,7 @@ const {
   getRoomState,
   isInternalRoom,
   listEntries,
+  listRoomStates,
 } = require("./_supabase");
 
 const CSV_EXPORT_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
@@ -76,9 +77,28 @@ function formatCsvTime(value) {
   }).format(date);
 }
 
-function buildCsv(title, entries) {
+function findTitleForEntry(entry, roomStates, fallbackTitle) {
+  const entryTime = new Date(entry.created_at).getTime();
+  if (!Number.isFinite(entryTime)) {
+    return fallbackTitle;
+  }
+
+  let title = fallbackTitle;
+  for (const state of roomStates) {
+    const stateTime = new Date(state.createdAt).getTime();
+    if (!Number.isFinite(stateTime) || stateTime > entryTime) {
+      break;
+    }
+    title = normalizeTitle(state.title || title);
+  }
+
+  return title;
+}
+
+function buildCsv(fallbackTitle, entries, roomStates = []) {
   const rows = [["タイトル", "ワード", "時間"]];
   for (const entry of [...entries].reverse()) {
+    const title = findTitleForEntry(entry, roomStates, fallbackTitle);
     rows.push([title, entry.word, formatCsvTime(entry.created_at)]);
   }
 
@@ -128,7 +148,8 @@ module.exports = async (req, res) => {
       limit: EXPORT_FETCH_LIMIT,
     });
     const title = normalizeTitle(state.title || event?.title || room);
-    const csv = buildCsv(title, entries);
+    const roomStates = event ? await listRoomStates(room, { limit: EXPORT_FETCH_LIMIT }) : [];
+    const csv = buildCsv(title, entries, roomStates);
     const csvBuffer = iconv.encode(csv, "Shift_JIS");
     const filename = buildFilename(title);
 
