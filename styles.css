@@ -307,6 +307,21 @@ body {
   padding-right: 4px;
 }
 
+.issuer-list.is-loading {
+  min-height: 48px;
+  overflow: visible;
+}
+
+.issuer-list .field-note {
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.issuer-loading-note {
+  padding: 2px 0;
+}
+
 .issuer-list-item {
   display: grid;
   gap: 8px;

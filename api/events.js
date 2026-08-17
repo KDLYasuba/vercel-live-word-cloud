@@ -12,7 +12,8 @@ const {
 } = require("./_supabase");
 
 const ISSUER_RATE_LIMIT_WINDOW_MS = Number(process.env.ISSUER_RATE_LIMIT_WINDOW_MS || 60000);
-const ISSUER_RATE_LIMIT_PER_IP = Number(process.env.ISSUER_RATE_LIMIT_PER_IP || 10);
+const ISSUER_RATE_LIMIT_PER_IP = Number(process.env.ISSUER_RATE_LIMIT_PER_IP || 30);
+const ISSUER_LIST_RATE_LIMIT_PER_IP = Number(process.env.ISSUER_LIST_RATE_LIMIT_PER_IP || 60);
 const issuerBuckets = new Map();
 
 function normalizeText(value, fallback = "") {
@@ -28,9 +29,11 @@ function getClientIp(req) {
   return forwarded.split(",")[0].trim() || req.socket?.remoteAddress || "unknown";
 }
 
-function checkIssuerRateLimit(req) {
+function checkIssuerRateLimit(req, action) {
   const now = Date.now();
-  const key = getClientIp(req);
+  const normalizedAction = action === "list" ? "list" : "write";
+  const limit = normalizedAction === "list" ? ISSUER_LIST_RATE_LIMIT_PER_IP : ISSUER_RATE_LIMIT_PER_IP;
+  const key = `${getClientIp(req)}:${normalizedAction}`;
   const current = issuerBuckets.get(key);
   if (!current || current.resetAt <= now) {
     issuerBuckets.set(key, { count: 1, resetAt: now + ISSUER_RATE_LIMIT_WINDOW_MS });
@@ -38,7 +41,7 @@ function checkIssuerRateLimit(req) {
   }
 
   current.count += 1;
-  return current.count <= ISSUER_RATE_LIMIT_PER_IP;
+  return current.count <= limit;
 }
 
 function getIssuerPassword() {
@@ -120,7 +123,8 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
-      if (!checkIssuerRateLimit(req)) {
+      const action = String(req.body?.action || "create");
+      if (!checkIssuerRateLimit(req, action)) {
         res.status(429).json({ error: "Too many attempts. Please wait and try again." });
         return;
       }

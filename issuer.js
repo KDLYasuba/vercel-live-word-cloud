@@ -8,7 +8,6 @@ const issuerList = document.getElementById("issuer-list");
 const issuerListRefresh = document.getElementById("issuer-list-refresh");
 const issuerPasswordInput = document.getElementById("issuer-password");
 const issuerListPasswordInput = document.getElementById("issuer-list-password");
-let issuerListLoadTimer = null;
 const ISSUER_PASSWORD_STORAGE_KEY = "liveWordCloudIssuerPassword";
 
 function setIssuerStatus(message) {
@@ -32,6 +31,14 @@ function storeIssuerPassword(password) {
     }
   } catch (error) {
     // Ignore storage failures. The password inputs still work for this page view.
+  }
+}
+
+function clearStoredIssuerPassword() {
+  try {
+    window.sessionStorage.removeItem(ISSUER_PASSWORD_STORAGE_KEY);
+  } catch (error) {
+    // Ignore storage failures.
   }
 }
 
@@ -155,41 +162,43 @@ async function loadIssuerList() {
   }
 
   if (issuerList) {
-    issuerList.innerHTML = '<p class="field-note">読み込み中です...</p>';
+    issuerList.classList.add("is-loading");
+    issuerList.innerHTML = '<p class="field-note issuer-loading-note">読み込み中です...</p>';
   }
 
-  const response = await fetch("/api/events", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ action: "list", password }),
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.detail || payload.error || "一覧の取得に失敗しました。");
+  if (issuerListRefresh) {
+    issuerListRefresh.disabled = true;
   }
 
-  renderIssuerList(payload.events || []);
-  storeIssuerPassword(password);
-  syncIssuerPasswordInputs(password);
-  setIssuerStatus("発行済みURL一覧を更新しました。");
-}
+  try {
+    const response = await fetch("/api/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "list", password }),
+    });
+    const payload = await response.json();
 
-function scheduleIssuerListLoad() {
-  if (!getIssuerPasswordValue()) {
-    return;
-  }
-
-  window.clearTimeout(issuerListLoadTimer);
-  issuerListLoadTimer = window.setTimeout(async () => {
-    try {
-      await loadIssuerList();
-    } catch (error) {
-      setIssuerStatus(error.message);
+    if (!response.ok) {
+      if (response.status === 403) {
+        clearStoredIssuerPassword();
+      }
+      throw new Error(payload.detail || payload.error || "一覧の取得に失敗しました。");
     }
-  }, 300);
+
+    renderIssuerList(payload.events || []);
+    storeIssuerPassword(password);
+    syncIssuerPasswordInputs(password);
+    setIssuerStatus("発行済みURL一覧を更新しました。");
+  } finally {
+    if (issuerList) {
+      issuerList.classList.remove("is-loading");
+    }
+    if (issuerListRefresh) {
+      issuerListRefresh.disabled = false;
+    }
+  }
 }
 
 async function deleteIssuedEvent(token, title, isExpired) {
@@ -254,6 +263,8 @@ if (issuerForm) {
       issuerParticipantUrl.value = payload.participantUrl;
       issuerScreenUrl.value = payload.screenUrl;
       issuerResult.classList.remove("is-hidden");
+      storeIssuerPassword(password);
+      syncIssuerPasswordInputs(password, issuerPasswordInput);
       setIssuerStatus("発行しました。司会者URLを共有してください。");
       await loadIssuerList();
     } catch (error) {
@@ -275,29 +286,24 @@ if (issuerListRefresh) {
 if (issuerPasswordInput) {
   issuerPasswordInput.addEventListener("input", () => {
     syncIssuerPasswordInputs(issuerPasswordInput.value, issuerPasswordInput);
-    scheduleIssuerListLoad();
   });
   issuerPasswordInput.addEventListener("change", () => {
     syncIssuerPasswordInputs(issuerPasswordInput.value, issuerPasswordInput);
-    scheduleIssuerListLoad();
   });
 }
 
 if (issuerListPasswordInput) {
   issuerListPasswordInput.addEventListener("input", () => {
     syncIssuerPasswordInputs(issuerListPasswordInput.value, issuerListPasswordInput);
-    scheduleIssuerListLoad();
   });
   issuerListPasswordInput.addEventListener("change", () => {
     syncIssuerPasswordInputs(issuerListPasswordInput.value, issuerListPasswordInput);
-    scheduleIssuerListLoad();
   });
 }
 
 const storedIssuerPassword = getStoredIssuerPassword();
 if (storedIssuerPassword) {
   syncIssuerPasswordInputs(storedIssuerPassword);
-  window.setTimeout(scheduleIssuerListLoad, 250);
 }
 
 if (issuerList) {

@@ -41,6 +41,7 @@ Vercel 上ではサーバーメモリ保持が安定しないため、外部ス�
 - `RESET_PASSWORD`
 - `ISSUER_PASSWORD`
 - `CRON_SECRET`
+- `ISSUER_LIST_RATE_LIMIT_PER_IP`
 
 サンプルは [.env.example](/Users/yasuba/Library/CloudStorage/Dropbox/workspace/AI/Codex/vercel-live-word-cloud/.env.example) にあります。
 

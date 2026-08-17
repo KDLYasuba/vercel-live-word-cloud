@@ -138,6 +138,7 @@ sequenceDiagram
 | `CRON_SECRET` | 期限切れデータ自動削除APIをVercel Cronから呼ぶための認証トークン |
 | `RATE_LIMIT_PER_IP` | 投稿APIのIP・room単位上限。未設定時は `120` |
 | `RATE_LIMIT_PER_ROOM` | 投稿APIのroom単位上限。未設定時は `2000` |
+| `ISSUER_LIST_RATE_LIMIT_PER_IP` | 発行済みURL一覧取得のIP単位上限。未設定時は `60` |
 
 ## デプロイ構成
 
