@@ -123,7 +123,7 @@ module.exports = async (req, res) => {
 
     const state = await getRoomState(room);
     const entries = await listEntries(room, {
-      since: state.resetAt,
+      since: event ? null : state.resetAt,
       includeCreatedAt: true,
       limit: EXPORT_FETCH_LIMIT,
     });
