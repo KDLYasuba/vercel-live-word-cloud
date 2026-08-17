@@ -73,7 +73,7 @@ function updateRoomUi() {
     participantRoomTitleEl.textContent = displayTitle;
   }
 
-  if (roomInput) {
+  if (roomInput && document.activeElement !== roomInput) {
     roomInput.value = displayTitle;
   }
 
