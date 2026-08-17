@@ -50,7 +50,7 @@ function getIssuerPassword() {
 
 function assertIssuerPassword(req, res) {
   const expected = getIssuerPassword();
-  const submitted = String(req.body?.password || req.query?.password || "");
+  const submitted = String(req.body?.password || req.query?.password || "").trim();
 
   if (!expected) {
     res.status(500).json({ error: "ISSUER_PASSWORD is not configured." });
@@ -58,7 +58,7 @@ function assertIssuerPassword(req, res) {
   }
 
   if (!submitted || submitted !== expected) {
-    res.status(403).json({ error: "Invalid issuer password." });
+    res.status(403).json({ error: "発行パスワードが違います。大文字・小文字も確認してください。" });
     return false;
   }
 

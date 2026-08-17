@@ -47,7 +47,7 @@ function getIssuerPasswordValue() {
 }
 
 function syncIssuerPasswordInputs(value, sourceInput = null) {
-  const password = String(value || "");
+  const password = String(value || "").trim();
   for (const input of [issuerPasswordInput, issuerListPasswordInput]) {
     if (input && input !== sourceInput && input.value !== password) {
       input.value = password;
@@ -183,6 +183,7 @@ async function loadIssuerList() {
     if (!response.ok) {
       if (response.status === 403) {
         clearStoredIssuerPassword();
+        syncIssuerPasswordInputs("");
       }
       throw new Error(payload.detail || payload.error || "一覧の取得に失敗しました。");
     }
@@ -242,7 +243,7 @@ if (issuerForm) {
     const formData = new FormData(issuerForm);
     const title = String(formData.get("title") || "").trim();
     const expiresAt = toIsoDateTime(formData.get("expiresAt"));
-    const password = String(formData.get("password") || "");
+    const password = String(formData.get("password") || "").trim();
 
     try {
       setIssuerStatus("発行中です...");
@@ -256,6 +257,10 @@ if (issuerForm) {
       const payload = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403) {
+          clearStoredIssuerPassword();
+          syncIssuerPasswordInputs("");
+        }
         throw new Error(payload.detail || payload.error || "発行に失敗しました。");
       }
 

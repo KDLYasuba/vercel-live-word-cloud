@@ -293,6 +293,10 @@ body {
   font-size: 1rem;
 }
 
+.issuer-password-note {
+  margin-top: 8px;
+}
+
 .issuer-refresh-button {
   width: 100%;
   margin-top: 18px;

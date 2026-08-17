@@ -24,6 +24,7 @@
 
             <label for="issuer-password">発行パスワード</label>
             <input id="issuer-password" name="password" type="password" autocomplete="current-password" required />
+            <p class="field-note">発行パスワードは大文字・小文字を区別します。</p>
 
             <button type="submit">管理URLを発行</button>
           </form>
@@ -54,6 +55,7 @@
             type="password"
             autocomplete="current-password"
           />
+          <p class="field-note issuer-password-note">発行パスワードは大文字・小文字を区別します。</p>
           <button id="issuer-list-refresh" class="ghost-button issuer-refresh-button" type="button">一覧を更新</button>
           <div id="issuer-list" class="issuer-list" aria-live="polite">
             <p class="field-note">発行パスワードを入力すると一覧を表示します。</p>
