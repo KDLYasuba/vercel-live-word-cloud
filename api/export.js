@@ -105,10 +105,9 @@ function buildCsv(fallbackTitle, entries, roomStates = []) {
   return rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n") + "\r\n";
 }
 
-function buildFilename(title) {
-  const safeTitle = normalizeTitle(title).replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
+function buildFilename() {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return `word-cloud-${safeTitle}-${timestamp}.csv`;
+  return `word-cloud-${timestamp}.csv`;
 }
 
 module.exports = async (req, res) => {
@@ -151,7 +150,7 @@ module.exports = async (req, res) => {
     const roomStates = event ? await listRoomStates(room, { limit: EXPORT_FETCH_LIMIT }) : [];
     const csv = buildCsv(title, entries, roomStates);
     const csvBuffer = iconv.encode(csv, "Shift_JIS");
-    const filename = buildFilename(title);
+    const filename = buildFilename();
 
     res.setHeader("Content-Type", "text/csv; charset=Shift_JIS");
     res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
