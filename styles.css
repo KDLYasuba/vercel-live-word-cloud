@@ -200,13 +200,19 @@ body {
 }
 
 .participant-title strong {
+  display: inline-block;
+  color: var(--ink);
   font-size: 1.08em;
 }
 
-.privacy-notice,
-.admin-expiry {
+.privacy-notice {
   margin: 8px 0 0;
   color: var(--accent);
+  font-weight: 800;
+}
+
+.admin-expiry {
+  margin: 8px 0 0;
   font-weight: 800;
 }
 
