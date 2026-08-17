@@ -13,6 +13,15 @@ const EVENT_INDEX_ROOM = "__live_word_cloud_event_index__";
 const ENTRY_FETCH_LIMIT = 2000;
 const EXPORT_FETCH_LIMIT = 10000;
 
+function getSupabaseBaseUrl() {
+  const rawUrl = String(SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  if (!rawUrl) {
+    return "";
+  }
+
+  return /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+}
+
 function isInternalRoom(room) {
   return String(room || "").startsWith("__live_word_cloud_");
 }
@@ -22,7 +31,7 @@ function normalizeMode(value) {
 }
 
 function hasSupabaseEnv() {
-  return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(getSupabaseBaseUrl() && SUPABASE_SERVICE_ROLE_KEY);
 }
 
 function isLegacyJwtKey(value) {
@@ -126,10 +135,19 @@ async function supabaseFetch(path, options = {}) {
     headers.Authorization = `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`;
   }
 
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${getSupabaseBaseUrl()}/rest/v1/${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    const nextError = new Error(
+      "Supabaseに接続できません。VercelのSUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY、Supabaseプロジェクトの起動状態を確認してください。",
+    );
+    nextError.statusCode = 502;
+    throw nextError;
+  }
 
   if (!response.ok) {
     const text = await response.text();
